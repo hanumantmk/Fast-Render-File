@@ -64,8 +64,12 @@ sub run {
 
     foreach my $item (@$cc) {
       my $string = ref $item
-	? $p13n[$p13n_lookup{$$item}]
+	? exists $p13n_lookup{$$item}
+	  ? $p13n[$p13n_lookup{$$item}]
+	  : ''
 	: $item;
+
+      next if ! length($string);
 
       if (! $strings{$string}) {
 	$strings{$string} = $num_uniq_strings++;

@@ -13,9 +13,6 @@ int main (int argc, char ** argv)
   int i, goal;
 
   if (argc == 2) {
-    do {
-      frf_write(&frf, 1);
-    } while ( frf_next(&frf) );
   } else {
     if (strcmp(argv[2], "get_offset") == 0) {
       goal = atoi(argv[3]);
@@ -25,6 +22,10 @@ int main (int argc, char ** argv)
       }
 
       printf("%d\n", frf_get_offset(&frf));
+    } else if (strcmp(argv[2], "dump_offsets") == 0) {
+      do {
+	printf("%d\n", frf_get_offset(&frf));
+      } while ( frf_next(&frf) );
     } else if (strcmp(argv[2], "seek") == 0) {
       goal = atoi(argv[3]);
 
