@@ -21,17 +21,7 @@ GetOptions(
 
 open my $p13n_ifd, $p13n_file or die "Terribly: $!";
 
-my $content = do {
-  open FILE, $content_file or die "Terribly: $!";
-
-  local $/;
-
-  my $b = <FILE>;
-
-  close FILE or die "Terribly: $!";
-
-  $b;
-};
+my $content = do $content_file;
 
 my $offsets;
 my $string_table;
@@ -52,7 +42,10 @@ exit 0;
 sub run {
   my ($content, $p13n_ifd, $string_table, $vector_header, $vector) = @_;
 
-  my $cc = compile_content($content);
+  my $cc = compile_content_body($content->{body});
+
+  my $i = 0;
+  my %p13n_lookup = map { $_, $i++ } @{$content->{p13n}};
 
   my %strings;
 
@@ -71,7 +64,7 @@ sub run {
 
     foreach my $item (@$cc) {
       my $string = ref $item
-	? $p13n[$$item - 1]
+	? $p13n[$p13n_lookup{$$item}]
 	: $item;
 
       if (! $strings{$string}) {
@@ -91,13 +84,13 @@ sub run {
     $num_lines++;
   }
 
-  my $i = 0;
+  $i = 0;
 
   $$vector_header = pack("N*", @string_table);
   $$vector = pack("N", $num_lines) . $$vector;
 }
 
-sub compile_content {
+sub compile_content_body {
   my $content = shift;
 
   my @cc;
