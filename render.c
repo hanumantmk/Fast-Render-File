@@ -13,6 +13,9 @@ int main (int argc, char ** argv)
   int i, goal;
 
   if (argc == 2) {
+      do {
+	frf_write(&frf, 1);
+      } while ( frf_next(&frf) );
   } else {
     if (strcmp(argv[2], "get_offset") == 0) {
       goal = atoi(argv[3]);
