@@ -1,4 +1,14 @@
 {
+  dc => {
+    FOOTER => {
+      key => 'GENDER',
+      alternatives => {
+	m => 'ba ba black %%YOUR_NAME%% have you any wool?',
+	f => 'over the waterfall %%YOUR_NAME%%!!!!',
+      },
+      default => 'nonconformist!',
+    },
+  },
   p13n => [qw(
     YOUR_NAME
     AGE
@@ -239,6 +249,8 @@ Aenean arcu odio, molestie a sagittis ut, blandit semper risus. Maecenas enim li
 
 Bye,
 %%YOUR_NAME%%
+
+%%FOOTER%%
 
 BODY
 ,

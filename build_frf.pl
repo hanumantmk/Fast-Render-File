@@ -44,11 +44,7 @@ print $offsets, $string_table, $vector_header, $vector;
 exit 0;
 
 sub run {
-  my $cc = compile_content_body($content->{body});
-
-  my $i = 0;
-
-  my %p13n_lookup = map { $_, $i++ } @{$content->{p13n}};
+  my $cc = compile_content($content);
 
   my $num_lines = 0;
 
@@ -59,15 +55,27 @@ sub run {
 
     my @vector;
 
-    foreach my $item (@$cc) {
+    my @todo = @$cc;
+
+    while (my $item = shift @todo) {
       if ($item->[0] eq 'static') {
 	push @vector, $item->[1];
-      } elsif ($item->[0] eq 'dynamic') {
-	if (exists $p13n_lookup{$item->[1]}) {
-	  my $string = $p13n[$p13n_lookup{$item->[1]}];
-	  
-	  push @vector, add_to_string_table($string) if $string ne '';
-	};
+      } elsif ($item->[0] eq 'p13n') {
+	my $string = $p13n[$item->[1]];
+	push @vector, add_to_string_table($string) if $string ne '';
+      } elsif ($item->[0] eq 'dc') {
+	my $dc = $item->[1];
+
+	my $string = $p13n[$dc->{key}];
+
+	my $new_work;
+	if (exists $dc->{alternatives}{$string}) {
+	  $new_work = $dc->{alternatives}{$string};
+	} else {
+	  $new_work = $dc->{default};
+	}
+
+	unshift @todo, @$new_work;
       } else {
 	die "unknown content type";
       }
@@ -81,18 +89,55 @@ sub run {
   $vector = pack("N", $num_lines) . $vector;
 }
 
-sub compile_content_body {
-  my ($content) = @_;
+sub compile_content {
+  my ($c) = @_;
 
   my @cc;
+
+  my $i = 0;
+
+  my %p13n_lookup = map { $_, $i++ } @{$c->{p13n}};
+
+  my $dc = $c->{dc};
+  
+  my %cc_for_dc;
+
+  foreach my $key (keys %$dc) {
+    my $d = $dc->{$key};
+    if (exists $p13n_lookup{$d->{key}}) {
+      $cc_for_dc{$key} = {
+	key => $p13n_lookup{$d->{key}},
+	alternatives => {
+	  map {
+	    $_, compile_content({
+	      p13n => $c->{p13n},
+	      body => $d->{alternatives}{$_},
+	    }),
+	  } keys %{$d->{alternatives}}
+	},
+	default => compile_content({
+	  p13n => $c->{p13n},
+	  body => $d->{default},
+	}),
+      };
+    }
+  }
+
+  my $content = $c->{body};
 
   while ($content =~ s/(.*?)%%\s*([^% ]+)\s*%%//s) {
     my ($before, $tag) = ($1, $2);
 
     if ($before ne '') {
-      push @cc, ['static' => add_to_string_table($before)], ['dynamic' => $tag];
-    } else {
-      push @cc, ['dynamic' => $tag];
+      push @cc, ['static' => add_to_string_table($before)];
+    }
+    
+    if (exists $p13n_lookup{$tag}) {
+      push @cc, ['p13n' => $p13n_lookup{$tag}];
+    }
+
+    if (exists $cc_for_dc{$tag}) {
+      push @cc, ['dc' => $cc_for_dc{$tag}];
     }
   }
 
