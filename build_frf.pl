@@ -33,32 +33,24 @@ my $content = do {
   $b;
 };
 
-open my $offsets, ">$output_file.1" or die "terribly: $!";
-open my $string_table_ofd, ">$output_file.2" or die "terribly: $!";
-open my $vector_header_ofd, ">$output_file.3" or die "terribly: $!";
-open my $vector_ofd, ">$output_file.4" or die "terribly: $!";
+my $offsets;
+my $string_table;
+my $vector_header;
+my $vector;
 
-run($content, $p13n_ifd, $string_table_ofd, $vector_header_ofd, $vector_ofd);
+run($content, $p13n_ifd, \$string_table, \$vector_header, \$vector);
 
-close $string_table_ofd or die "terribly: $!";
-close $vector_ofd or die "terribly: $!";
-close $vector_header_ofd or die "terribly: $!";
-close $p13n_ifd or die "terribly: $!";
+my $string_table_size  = length($string_table);
+my $vector_header_size = length($vector_header);
 
-my $string_table_size  = [stat("$output_file.2")]->[7];
-my $vector_header_size = [stat("$output_file.3")]->[7];
+$offsets = pack("NNN", 12, 12 + $string_table_size, 12 + $string_table_size + $vector_header_size);
 
-print $offsets pack("NNN", 12, 12 + $string_table_size, 12 + $string_table_size + $vector_header_size);
-
-close $offsets or die "terribly: $!";
-
-system("cat " . join(" ", map { join('.', $output_file, $_) } 1..4) . " > $output_file.frf");
-unlink(map { join('.', $output_file, $_) } 1..4);
+print $offsets, $string_table, $vector_header, $vector;
 
 exit 0;
 
 sub run {
-  my ($content, $p13n_ifd, $string_table_ofd, $vector_header_ofd, $vector_ofd) = @_;
+  my ($content, $p13n_ifd, $string_table, $vector_header, $vector) = @_;
 
   my $cc = compile_content($content);
 
@@ -87,7 +79,7 @@ sub run {
 	  freq   => 1,
 	};
 
-	print $string_table_ofd $string;
+	$$string_table .= $string;
 	$written += length $string;
       }
     }
@@ -101,8 +93,8 @@ sub run {
     ($_->{offset}, $_->{length});
   } sort {$b->{freq} <=> $a->{freq}} values %strings;
 
-  print $vector_header_ofd pack("N*", @string_table);
-  print $vector_ofd pack("N", $num_lines);
+  $$vector_header = pack("N*", @string_table);
+  $$vector = pack("N", $num_lines);
 
   seek($p13n_ifd, 0, 0);
 
@@ -121,7 +113,7 @@ sub run {
       push @vector, $strings{$string}{index};
     }
 
-    print $vector_ofd pack("nn*", scalar(@vector), @vector);
+    $$vector .= pack("nn*", scalar(@vector), @vector);
   }
 }
 

@@ -6,11 +6,11 @@ render.c: Makefile
 
 render: render.c
 
-out.frf:
-	./build_frf.pl --content content.txt --p13n p13n.txt --output test
+test.frf:
+	./build_frf.pl --content content.txt --p13n p13n.txt > test.frf
 
 clean:
 	rm -f test.frf render test_output.txt
 
-test: render out.frf
+test: render test.frf
 	time ./render test.frf > test_output.txt
