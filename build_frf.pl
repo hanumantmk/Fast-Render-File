@@ -59,44 +59,8 @@ sub run {
   my $written = 0;
   
   my $num_lines = 0;
-
-  while (my $line = <$p13n_ifd>) {
-    chomp $line;
-
-    my @p13n = split("\t", $line);
-
-    foreach my $item (@$cc) {
-      my $string = ref $item
-	? $p13n[$$item - 1]
-	: $item;
-
-      if ($strings{$string}) {
-	$strings{$string}{freq}++;
-      } else {
-	$strings{$string} = {
-	  offset => $written,
-	  length => length($string),
-	  freq   => 1,
-	};
-
-	$$string_table .= $string;
-	$written += length $string;
-      }
-    }
-
-    $num_lines++;
-  }
-
-  my $i = 0;
-  my @string_table = map {
-    $_->{index} = $i++;
-    ($_->{offset}, $_->{length});
-  } sort {$b->{freq} <=> $a->{freq}} values %strings;
-
-  $$vector_header = pack("N*", @string_table);
-  $$vector = pack("N", $num_lines);
-
-  seek($p13n_ifd, 0, 0);
+  my @string_table;
+  my $num_uniq_strings = 0;
 
   while (my $line = <$p13n_ifd>) {
     chomp $line;
@@ -110,11 +74,27 @@ sub run {
 	? $p13n[$$item - 1]
 	: $item;
 
-      push @vector, $strings{$string}{index};
-    }
+      if (! $strings{$string}) {
+	$strings{$string} = $num_uniq_strings++;
 
+	push @string_table, $written, length($string);
+
+	$$string_table .= $string;
+	$written += length $string;
+      }
+
+      push @vector, $strings{$string};
+
+    }
     $$vector .= pack("nn*", scalar(@vector), @vector);
+
+    $num_lines++;
   }
+
+  my $i = 0;
+
+  $$vector_header = pack("N*", @string_table);
+  $$vector = pack("N", $num_lines) . $$vector;
 }
 
 sub compile_content {
