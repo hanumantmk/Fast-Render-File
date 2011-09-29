@@ -33,7 +33,7 @@ int frf_init(frf_t * frf, char * file_name)
 
   frf->num_rows = ntohl(*((uint32_t *)(frf->_vector_base)));
 
-  frf->row_ptr = frf->_vector_base + 2;
+  frf->_row_ptr = frf->_vector_base + 2;
 
   return 0;
 }
@@ -44,7 +44,7 @@ ssize_t frf_write(frf_t * frf, int fd)
   uint32_t * vector_header_base = frf->_vector_header_base;
   uint16_t * vector_base        = frf->_vector_base;
 
-  uint16_t * vec_ptr = frf->row_ptr;
+  uint16_t * vec_ptr = frf->_row_ptr;
 
   if (vec_ptr >= frf->_end) {
     return -1;
@@ -78,10 +78,24 @@ int frf_next(frf_t * frf)
 {
   int num_elements;
 
-  num_elements = ntohs(*(frf->row_ptr));
+  num_elements = ntohs(*(frf->_row_ptr));
 
-  if ((frf->row_ptr += num_elements + 1) <= frf->_end) {
+  if ((frf->_row_ptr += num_elements + 1) <= frf->_end) {
     return 1;
+  } else {
+    return 0;
+  }
+}
+
+uint32_t frf_get_offset(frf_t * frf)
+{
+  return (char *)(frf->_row_ptr) - (char *)(frf->_mmap_base);
+}
+
+int frf_seek(frf_t * frf, uint32_t offset)
+{
+  if ((frf->_row_ptr = (uint16_t *)(((char *)frf->_mmap_base) + offset)) >= frf->_end) {
+    return -1;
   } else {
     return 0;
   }
