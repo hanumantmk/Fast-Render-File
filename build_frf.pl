@@ -44,7 +44,7 @@ print $offsets, $string_table, $vector_header, $vector;
 exit 0;
 
 sub run {
-  my $cc = compile_content($content);
+  my $cc = FRF::LazyContent->new($content, \&add_to_string_table)->to_cells;
 
   my $num_lines = 0;
 
@@ -75,7 +75,7 @@ sub run {
 	  $new_work = $dc->{default};
 	}
 
-	unshift @todo, @$new_work;
+	unshift @todo, @{$new_work->to_cells};
       } else {
 	die "unknown content type";
       }
@@ -89,64 +89,6 @@ sub run {
   $vector = pack("N", $num_lines) . $vector;
 }
 
-sub compile_content {
-  my ($c) = @_;
-
-  my @cc;
-
-  my $i = 0;
-
-  my %p13n_lookup = map { $_, $i++ } @{$c->{p13n}};
-
-  my $dc = $c->{dc};
-  
-  my %cc_for_dc;
-
-  foreach my $key (keys %$dc) {
-    my $d = $dc->{$key};
-    if (exists $p13n_lookup{$d->{key}}) {
-      $cc_for_dc{$key} = {
-	key => $p13n_lookup{$d->{key}},
-	alternatives => {
-	  map {
-	    $_, compile_content({
-	      p13n => $c->{p13n},
-	      body => $d->{alternatives}{$_},
-	    }),
-	  } keys %{$d->{alternatives}}
-	},
-	default => compile_content({
-	  p13n => $c->{p13n},
-	  body => $d->{default},
-	}),
-      };
-    }
-  }
-
-  my $content = $c->{body};
-
-  while ($content =~ s/(.*?)%%\s*([^% ]+)\s*%%//s) {
-    my ($before, $tag) = ($1, $2);
-
-    if ($before ne '') {
-      push @cc, ['static' => add_to_string_table($before)];
-    }
-    
-    if (exists $p13n_lookup{$tag}) {
-      push @cc, ['p13n' => $p13n_lookup{$tag}];
-    }
-
-    if (exists $cc_for_dc{$tag}) {
-      push @cc, ['dc' => $cc_for_dc{$tag}];
-    }
-  }
-
-  if ($content ne '') {
-    push @cc, ['static' => add_to_string_table($content)];
-  }
-
-  return \@cc;
-}
 
 sub add_to_string_table {
   my ($string) = @_;
@@ -166,4 +108,88 @@ sub add_to_string_table {
 
     return $num_uniq_strings++;
   }
+}
+
+package FRF::LazyContent;
+
+sub new {
+  my ($class, $c, $add_to_string_table) = @_;
+
+  return bless {
+    c                   => $c,
+    add_to_string_table => $add_to_string_table,
+  }, $class;
+}
+
+sub to_cells {
+  my $self = shift;
+
+  return $self->{cells} if $self->{cells};
+
+  my $c = $self->{c};
+
+  my @cc;
+
+  my $context;
+  
+  if ($c->{context}) {
+    $context = $c->{context};
+  } else {
+    $context = {
+      p13n_lookup => {},
+      cc_for_dc   => {},
+    };
+
+    my $i = 0;
+    $context->{p13n_lookup} = {map { $_, $i++ } @{$c->{p13n}}};
+
+    my $dc = $c->{dc};
+    
+    foreach my $key (keys %$dc) {
+      my $d = $dc->{$key};
+      if (exists $context->{p13n_lookup}{$d->{key}}) {
+	$context->{cc_for_dc}{$key} = {
+	  key => $context->{p13n_lookup}{$d->{key}},
+	  alternatives => {
+	    map {
+	      $_, (ref $self)->new({
+		body    => $d->{alternatives}{$_},
+		context => $context,
+	      }, $self->{add_to_string_table}),
+	    } keys %{$d->{alternatives}}
+	  },
+	  default => (ref $self)->new({
+	    body    => $d->{default},
+	    context => $context,
+	  }, $self->{add_to_string_table}),
+	};
+      }
+    }
+  }
+
+  my $content = $c->{body};
+
+  while ($content =~ s/(.*?)%%\s*([^% ]+)\s*%%//s) {
+    my ($before, $tag) = ($1, $2);
+
+    if ($before ne '') {
+      push @cc, ['static' => $self->{add_to_string_table}->($before)];
+    }
+    
+    if (exists $context->{p13n_lookup}{$tag}) {
+      push @cc, ['p13n' => $context->{p13n_lookup}{$tag}];
+    }
+
+    if (exists $context->{cc_for_dc}{$tag}) {
+      push @cc, ['dc' => $context->{cc_for_dc}{$tag}];
+    }
+  }
+
+  if ($content ne '') {
+    push @cc, ['static' => $self->{add_to_string_table}->($content)];
+  }
+
+  $self->{cells} = \@cc;
+
+  return \@cc;
 }
