@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS= -O3
-#CFLAGS= -Wall -ggdb
+#CFLAGS= -O3
+CFLAGS= -Wall -g
 
 render.c: Makefile frf.h
 

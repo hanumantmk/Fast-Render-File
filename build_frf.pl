@@ -81,7 +81,7 @@ sub run {
       }
     }
 
-    $vector .= pack("nn*", scalar(@vector), @vector);
+    $vector .= pack("NN*", scalar(@vector), @vector);
 
     $num_lines++;
   }

@@ -24,16 +24,16 @@ int frf_init(frf_t * frf, char * file_name)
     return 1;
   }
 
-  frf->_end = (uint16_t *)(((char *)mmap_base) + size);
+  frf->_end = (uint32_t *)(((char *)mmap_base) + size);
 
   frf->_mmap_base = mmap_base;
   frf->_string_table_base  = (char *)((char *)mmap_base + ntohl(*mmap_base));
   frf->_vector_header_base = (uint32_t *)((char *)mmap_base + ntohl(*(mmap_base + 1)));
-  frf->_vector_base        = (uint16_t *)((char *)mmap_base + ntohl(*(mmap_base + 2)));
+  frf->_vector_base        = (uint32_t *)((char *)mmap_base + ntohl(*(mmap_base + 2)));
 
-  frf->num_rows = ntohl(*((uint32_t *)(frf->_vector_base)));
+  frf->num_rows = ntohl(*frf->_vector_base);
 
-  frf->_row_ptr = frf->_vector_base + 2;
+  frf->_row_ptr = frf->_vector_base + 1;
 
   return 0;
 }
@@ -42,9 +42,8 @@ ssize_t frf_write(frf_t * frf, int fd)
 {
   char     * string_table_base  = frf->_string_table_base;
   uint32_t * vector_header_base = frf->_vector_header_base;
-  uint16_t * vector_base        = frf->_vector_base;
 
-  uint16_t * vec_ptr = frf->_row_ptr;
+  uint32_t * vec_ptr = frf->_row_ptr;
 
   if (vec_ptr >= frf->_end) {
     return -1;
@@ -56,16 +55,16 @@ ssize_t frf_write(frf_t * frf, int fd)
 
   int num_elements;
 
-  uint16_t index;
+  uint32_t index;
 
   struct iovec iov[IOV_MAX];
 
-  num_elements = ntohs(*vec_ptr);
+  num_elements = ntohl(*vec_ptr);
 
   vec_ptr++;
 
   for (i = 0; i < num_elements; i++) {
-    index = ntohs(*vec_ptr) * 2;
+    index = ntohl(*vec_ptr) * 2;
     iov[i].iov_base = string_table_base + ntohl(*(vector_header_base + index));
     iov[i].iov_len  = ntohl(*(vector_header_base + 1 + index));
     vec_ptr++;
@@ -78,7 +77,7 @@ int frf_next(frf_t * frf)
 {
   int num_elements;
 
-  num_elements = ntohs(*(frf->_row_ptr));
+  num_elements = ntohl(*(frf->_row_ptr));
 
   if ((frf->_row_ptr += num_elements + 1) <= frf->_end) {
     return 1;
@@ -94,7 +93,7 @@ uint32_t frf_get_offset(frf_t * frf)
 
 int frf_seek(frf_t * frf, uint32_t offset)
 {
-  if ((frf->_row_ptr = (uint16_t *)(((char *)frf->_mmap_base) + offset)) >= frf->_end) {
+  if ((frf->_row_ptr = ((uint32_t *)(((char *)frf->_mmap_base) + offset))) >= frf->_end) {
     return -1;
   } else {
     return 0;
