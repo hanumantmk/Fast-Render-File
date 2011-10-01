@@ -12,7 +12,7 @@ test.frf: content.txt p13n.txt build_frf.pl
 	./build_frf.pl --content content.txt --p13n p13n.txt > test.frf
 
 clean:
-	rm -f test.frf render test_output.txt *.o
+	rm -f test.frf render stat test_output.txt *.o
 
 test: render test.frf
 	time ./render test.frf > /dev/null

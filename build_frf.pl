@@ -6,6 +6,7 @@ use warnings;
 use bytes;
 
 use List::Util qw( sum );
+use Scalar::Util qw( refaddr );
 
 use Getopt::Long;
 
@@ -25,21 +26,30 @@ my $content = do $content_file;
 
 my $offsets = '';
 my $string_table = '';
-my $vector_header = '';
+my $vector_header = pack("NN", 0, 0);
+my $unique_cells = '';
 my $vector = '';
 
 my %strings;
-my $num_uniq_strings = 0;
+my %unique_cell_sets;
+my $num_uniq_strings = 1; #start at 1 to save room for the special case of non-static content in unique cell lookups
+my $unique_cells_written = 0;
 my $written = 0;
 
 run();
 
+my $unique_cells_size  = length($unique_cells);
 my $string_table_size  = length($string_table);
 my $vector_header_size = length($vector_header);
 
-$offsets = pack("NNN", 12, 12 + $string_table_size, 12 + $string_table_size + $vector_header_size);
+$offsets = pack("NNNN",
+  16,
+  16 + $string_table_size,
+  16 + $string_table_size + $vector_header_size,
+  16 + $string_table_size + $vector_header_size + $unique_cells_size,
+);
 
-print $offsets, $string_table, $vector_header, $vector;
+print $offsets, $string_table, $vector_header, $unique_cells, $vector;
 
 exit 0;
 
@@ -53,16 +63,18 @@ sub run {
 
     my @p13n = split("\t", $line);
 
+    my @cells;
+
     my @vector;
 
     my @todo = @$cc;
 
     while (my $item = shift @todo) {
       if ($item->[0] eq 'static') {
-	push @vector, $item->[1];
+	push @cells, $item;
       } elsif ($item->[0] eq 'p13n') {
-	my $string = $p13n[$item->[1]];
-	push @vector, add_to_string_table($string) if $string ne '';
+	push @cells, $item;
+	push @vector, add_to_string_table($p13n[$item->[1]]);
       } elsif ($item->[0] eq 'dc') {
 	my $dc = $item->[1];
 
@@ -81,7 +93,17 @@ sub run {
       }
     }
 
-    $vector .= pack("NN*", scalar(@vector), @vector);
+    my $cells_id = join('.', map { refaddr($_) } @cells);
+
+    if (! (exists $unique_cell_sets{$cells_id})) {
+      $unique_cell_sets{$cells_id} = $unique_cells_written;
+
+      my $to_write = pack("N*", scalar(@cells), scalar(@vector), map { $_->[0] eq 'static' ? $_->[1] : 0 } @cells);
+      $unique_cells_written += length($to_write);
+      $unique_cells .= $to_write;
+    }
+
+    $vector .= pack("N*", $unique_cell_sets{$cells_id}, @vector);
 
     $num_lines++;
   }
@@ -95,8 +117,8 @@ sub add_to_string_table {
 
   if (! defined $string) {
     die "Can't have undefined string";
-  } elsif ($string eq '') {
-    die "Don't add empty strings";
+#  } elsif ($string eq '') {
+#    die "Don't add empty strings";
   } elsif (exists $strings{$string}) {
     return $strings{$string};
   } else {

@@ -12,7 +12,8 @@ int main (int argc, char ** argv)
 
   int total_size         = (char *)frf._end - (char *)frf._mmap_base;
   int string_table_size  = (char *)frf._vector_header_base - (char *)frf._mmap_base - 12;
-  int vector_header_size = (char *)frf._vector_base - (char *)frf._vector_header_base;
+  int vector_header_size = (char *)frf._unique_cells_base - (char *)frf._vector_header_base;
+  int unique_cells_size  = (char *)frf._vector_base - (char *)frf._unique_cells_base;
   int row_data_size      = (char *)frf._end - (char *)frf._vector_base;
 
   printf("\
@@ -20,9 +21,10 @@ FRF file          %s\n\
 Total Size        %d\n\
   String Table    %d\n\
   Vector Header   %d\n\
+  Unique Cells    %d\n\
   Row Data        %d\n\
 Num Records       %d\n\
-", file_name, total_size, string_table_size, vector_header_size, row_data_size, frf.num_rows);
+", file_name, total_size, string_table_size, vector_header_size, unique_cells_size, row_data_size, frf.num_rows);
 
   return 0;
 }
