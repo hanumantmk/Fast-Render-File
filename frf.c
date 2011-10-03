@@ -28,6 +28,8 @@ int frf_init(frf_t * frf, char * file_name)
     return 1;
   }
 
+  frf->file_name = file_name;
+
   frf->_end = (uint32_t *)(((char *)mmap_base) + size);
 
   frf->_mmap_base         = mmap_base;
@@ -42,7 +44,7 @@ int frf_init(frf_t * frf, char * file_name)
   return 0;
 }
 
-ssize_t frf_write(frf_t * frf, int fd)
+int _frf_iovec(frf_t * frf, struct iovec * iov)
 {
   char     * string_table_base = frf->_string_table_base;
   uint32_t * unique_cells_base = frf->_unique_cells_base;
@@ -61,8 +63,6 @@ ssize_t frf_write(frf_t * frf, int fd)
   int num_elements;
 
   uint32_t index;
-
-  struct iovec iov[IOV_MAX];
 
   unique_cell_offset = ntohl(*vec_ptr);
 
@@ -98,8 +98,16 @@ ssize_t frf_write(frf_t * frf, int fd)
     cell_ptr++;
   }
 
-/*  return 1;*/
-  return writev(1, iov, i);
+  return i;
+}
+
+ssize_t frf_write(frf_t * frf, int fd)
+{
+  struct iovec iov[IOV_MAX];
+
+  int iov_cnt = _frf_iovec(frf, iov);
+
+  return writev(fd, iov, iov_cnt);
 }
 
 int frf_next(frf_t * frf)

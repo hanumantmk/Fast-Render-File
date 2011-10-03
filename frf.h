@@ -11,6 +11,7 @@
 #include <limits.h>
 
 typedef struct frf {
+  char     * file_name;
   int        num_rows;
 
   uint32_t * _mmap_base;
@@ -31,3 +32,5 @@ int frf_next(frf_t * frf);
 uint32_t frf_get_offset(frf_t * frf);
 
 int frf_seek(frf_t * frf, uint32_t offset);
+
+int _frf_iovec(frf_t * frf, struct iovec * iov);
