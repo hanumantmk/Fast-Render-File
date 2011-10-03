@@ -9,6 +9,12 @@ struct frf_uniq_string {
   UT_hash_handle hh;
 }; 
 
+struct frf_uniq_cells {
+  int id;
+  int cnt;
+  UT_hash_handle hh;
+}; 
+
 void print_vector_info (frf_t * frf)
 {
   int small  = 0;
@@ -19,9 +25,15 @@ void print_vector_info (frf_t * frf)
   int uniq_medium = 0;
   int uniq_large  = 0;
 
-  struct frf_uniq_string * param;
+  int uniq_c = 0;
 
-  struct frf_uniq_string * hash = NULL;
+  struct frf_uniq_string * uniq_str_param;
+
+  struct frf_uniq_string * uniq_str_hash = NULL;
+
+  struct frf_uniq_cells * uniq_c_param;
+
+  struct frf_uniq_cells * uniq_c_hash = NULL;
 
   uint32_t offset;
 
@@ -32,13 +44,27 @@ void print_vector_info (frf_t * frf)
   do {
     iov_cnt = _frf_iovec(frf, iov);
 
+    offset = ntohl(*(frf->_row_ptr));
+
+    HASH_FIND_INT(uniq_c_hash, &offset, uniq_c_param);
+
+    if (! uniq_c_param) {
+      uniq_c_param = malloc(sizeof(struct frf_uniq_cells));
+      uniq_c_param->id = offset;
+      uniq_c_param->cnt = 0;
+
+      HASH_ADD_INT(uniq_c_hash, id, uniq_c_param);
+
+      uniq_c++;
+    }
+
     for (i = 0; i < iov_cnt; i++) {
       offset = (uint32_t)iov[i].iov_base;
 
-      HASH_FIND_INT(hash, &offset, param);
+      HASH_FIND_INT(uniq_str_hash, &offset, uniq_str_param);
 
-      if (param) {
-	param->cnt++;
+      if (uniq_str_param) {
+	uniq_str_param->cnt++;
 
 	if (iov[i].iov_len < (1 << 8)) {
 	  small++;
@@ -48,11 +74,11 @@ void print_vector_info (frf_t * frf)
 	  large++;
 	}
       } else {
-	param = malloc(sizeof(struct frf_uniq_string));
-	param->id = offset;
-	param->cnt = 0;
+	uniq_str_param = malloc(sizeof(struct frf_uniq_string));
+	uniq_str_param->id = offset;
+	uniq_str_param->cnt = 0;
 
-	HASH_ADD_INT(hash, id, param);
+	HASH_ADD_INT(uniq_str_hash, id, uniq_str_param);
 
 	if (iov[i].iov_len < (1 << 8)) {
 	  small++;
@@ -79,7 +105,9 @@ Total Unique Strings   %d\n\
   Small Strings        %d\n\
   Medium Strings       %d\n\
   Large Strings        %d\n\
-", small + medium + large, small, medium, large, uniq_small + uniq_medium + uniq_large, uniq_small, uniq_medium, uniq_large);
+\n\
+Total Unique Cells     %d\n\
+", small + medium + large, small, medium, large, uniq_small + uniq_medium + uniq_large, uniq_small, uniq_medium, uniq_large, uniq_c);
 
   return;
 }
