@@ -1,5 +1,5 @@
 #include "frf.h"
-#include <uthash.h>
+#include "uthash.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -9,7 +9,7 @@ struct frf_uniq_string {
   UT_hash_handle hh;
 }; 
 
-void print_string_distribution (frf_t * frf)
+void print_vector_info (frf_t * frf)
 {
   int small  = 0;
   int medium = 0;
@@ -114,7 +114,7 @@ int main (int argc, char ** argv)
 
   print_file_stats(&frf);
   printf("\n");
-  print_string_distribution(&frf);
+  print_vector_info(&frf);
 
   return 0;
 }

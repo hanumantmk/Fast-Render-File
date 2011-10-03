@@ -1,0 +1,57 @@
+A perl program that pre-renders a content file as a series of offsets and
+lengths (to be consumed by writev).  Format of the file is as follows:
+
+FILE_FORMAT
+
+HEADER
+4B - Number of rows
+4B - OFFSET to string table
+4B - OFFSET to unique cells (see below section)
+4B - OFFSET to vectors
+
+
+STRING_TABLE
+# a series of length + string pairs.  Comes in 3 sizes
+
+# small
+1B - length
+NB - data
+
+# medium
+2B - length
+NB - data
+
+# large
+4B - length
+NB - data
+
+# the offsets that point in here have information about what kind of pair we've
+# got.
+
+
+UNIQUE_CELLS
+# unique sets of static and dyanmic content shared among rows.  Usually one per
+# included dynamic content
+
+4B - Number of total cells in the row
+4B - Number of cells in the vector table (I.e. dyanmic components)
+NB - N = the first field.  Offsets into the string table.  If value = 3 << 30,
+     value is in the vector, otherwise static. See STRING_TABLE_POINTERS.
+
+VECTORS
+# The dynamic row data.
+
+4B - Offset into the UNIQUE_CELLS table
+NB - STRING_TABLE_POINTERS for dyanmic values
+
+
+STRING_TABLE_POINTERS
+Each string table pointer is a 32 bit unsigned int offset into the string
+table.  The 2 high bits hold special values:
+
+1 << 31 - pointer is to a small string
+1 << 30 - pointer is to a medium string
+0       - pointer is to a large string
+
+and in the unique cell data
+3 << 30 - pointer can be found in the vector data

@@ -14,6 +14,7 @@ test.frf: content.txt p13n.txt build_frf.pl
 clean:
 	rm -f test.frf render stat test_output.txt *.o
 
-test: render test.frf
+test: render stat test.frf
 	time ./render test.frf > /dev/null
 	./render test.frf seek `./render test.frf get_offset 10` | grep -c test_number_10
+	./stat test.frf
