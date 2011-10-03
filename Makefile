@@ -16,5 +16,5 @@ clean:
 
 test: render stat test.frf
 	time ./render test.frf > /dev/null
-	./render test.frf seek `./render test.frf get_offset 10` | grep -c test_number_10
+	./render test.frf seek `./render test.frf get_offset 10` | grep -c oxto0@0x2fp.net
 	./stat test.frf

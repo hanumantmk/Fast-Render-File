@@ -3,23 +3,28 @@
     FOOTER => {
       key => 'GENDER',
       alternatives => {
-	m => 'ba ba black %%YOUR_NAME%% have you any wool?',
-	f => 'over the waterfall %%YOUR_NAME%%!!!!',
+	m => 'ba ba black %%FNAME%% have you any wool?',
+	f => 'over the waterfall %%FNAME%%!!!!',
       },
       default => 'nonconformist!',
     },
   },
   p13n => [qw(
-    YOUR_NAME
-    AGE
+    USER_PROF_ID
+    EMAIL
+    STATE
+    CITY
+    FNAME
+    LNAME
     GENDER)],
   body => <<'BODY'
+To: %%EMAIL%%
 
-Hi There %%YOUR_NAME%%,
+Hi There %%FNAME%%,
 
 %%MISSING_FIELD%%
 
-you're awesome at %%AGE%% and %%GENDER%%!
+you're awesome at %%CITY%% and %%STATE%%!
 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi porta dolor sit amet purus imperdiet ullamcorper. Etiam nec felis non nisl accumsan bibendum eu in magna. Duis eros tellus, sodales vel faucibus eget, tincidunt sagittis sem. Nam egestas est dui, id mattis tellus. Ut dui ligula, semper quis laoreet sed, consectetur nec orci. Sed eu nunc vel nulla malesuada mattis sit amet a felis. Mauris eget mi odio. Duis rhoncus, mauris vel porta convallis, mi arcu pharetra nunc, in imperdiet libero justo vel elit. Pellentesque id dictum dui. Cras eget mi ligula. Nulla facilisi.
 
@@ -248,7 +253,7 @@ Nullam rutrum volutpat malesuada. Vestibulum at dui lorem, ut dignissim orci. Ve
 Aenean arcu odio, molestie a sagittis ut, blandit semper risus. Maecenas enim ligula, accumsan nec auctor et, euismod ac turpis. Aliquam id mi nec risus tristique ullamcorper eu nec ipsum. Suspendisse at nisi nisi. Quisque vitae eros eget erat mollis ultricies. Pellentesque sed lorem sed enim lacinia laoreet non ut sapien. Sed elit libero, faucibus at bibendum at, faucibus et risus. Aliquam ut risus vitae sapien consectetur viverra. Nulla at velit turpis metus.
 
 Bye,
-%%YOUR_NAME%%
+%%FNAME%% %%LNAME%%
 
 %%FOOTER%%
 
