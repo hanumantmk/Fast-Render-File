@@ -2,6 +2,10 @@
 
 #include "frf.h"
 
+#define FRF_SMALL_HEADER_MASK  1 << 31
+#define FRF_MEDIUM_HEADER_MASK 1 << 30
+#define FRF_DYNAMIC            3 << 30
+
 int frf_init(frf_t * frf, char * file_name)
 {
   uint32_t * mmap_base;
@@ -26,26 +30,24 @@ int frf_init(frf_t * frf, char * file_name)
 
   frf->_end = (uint32_t *)(((char *)mmap_base) + size);
 
-  frf->_mmap_base = mmap_base;
-  frf->_string_table_base  = (char *)((char *)mmap_base + ntohl(*mmap_base));
-  frf->_vector_header_base = (uint32_t *)((char *)mmap_base + ntohl(*(mmap_base + 1)));
-  frf->_unique_cells_base  = (uint32_t *)((char *)mmap_base + ntohl(*(mmap_base + 2)));
-  frf->_vector_base        = (uint32_t *)((char *)mmap_base + ntohl(*(mmap_base + 3)));
+  frf->_mmap_base         = mmap_base;
 
-  frf->num_rows = ntohl(*frf->_vector_base);
+  frf->num_rows           = ntohl(*((uint32_t *)(frf->_mmap_base)));
+  frf->_string_table_base = (char *)((char *)mmap_base + ntohl(*(mmap_base + 1)));
+  frf->_unique_cells_base = (uint32_t *)((char *)mmap_base + ntohl(*(mmap_base + 2)));
+  frf->_vector_base       = (uint32_t *)((char *)mmap_base + ntohl(*(mmap_base + 3)));
 
-  frf->_row_ptr = frf->_vector_base + 1;
+  frf->_row_ptr = frf->_vector_base;
 
   return 0;
 }
 
 ssize_t frf_write(frf_t * frf, int fd)
 {
-  char     * string_table_base  = frf->_string_table_base;
-  uint32_t * vector_header_base = frf->_vector_header_base;
-  uint32_t * unique_cells_base  = frf->_unique_cells_base;
+  char     * string_table_base = frf->_string_table_base;
+  uint32_t * unique_cells_base = frf->_unique_cells_base;
 
-  uint32_t * vec_ptr  = frf->_row_ptr;
+  uint32_t * vec_ptr = frf->_row_ptr;
   uint32_t * cell_ptr;
 
   if (vec_ptr >= frf->_end) {
@@ -75,20 +77,28 @@ ssize_t frf_write(frf_t * frf, int fd)
   for (i = 0; i < num_elements; i++) {
     index = ntohl(*cell_ptr);
 
-    if (! index) {
+    if (index == FRF_DYNAMIC) {
       index = ntohl(*vec_ptr);
       vec_ptr++;
     }
 
-    index *= 2;
-
-    iov[i].iov_base = string_table_base + ntohl(*(vector_header_base + index));
-    iov[i].iov_len  = ntohl(*(vector_header_base + 1 + index));
+    if (index & FRF_SMALL_HEADER_MASK) {
+      index -= FRF_SMALL_HEADER_MASK;
+      iov[i].iov_len  = *(string_table_base + index);
+      iov[i].iov_base = string_table_base + index + 1;
+    } else if (index & FRF_MEDIUM_HEADER_MASK) {
+      index -= FRF_MEDIUM_HEADER_MASK;
+      iov[i].iov_len  = ntohs(*((uint16_t *)(string_table_base + index)));
+      iov[i].iov_base = string_table_base + index + 2;
+    } else {
+      iov[i].iov_len  = ntohl(*((uint32_t *)(string_table_base + index)));
+      iov[i].iov_base = string_table_base + index + 4;
+    }
 
     cell_ptr++;
   }
 
-//  return 1;
+/*  return 1;*/
   return writev(1, iov, i);
 }
 

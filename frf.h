@@ -13,11 +13,10 @@
 typedef struct frf {
   int        num_rows;
 
-  uint32_t * _vector_base;
-  uint32_t * _vector_header_base;
-  uint32_t * _unique_cells_base;
-  char     * _string_table_base;
   uint32_t * _mmap_base;
+  char     * _string_table_base;
+  uint32_t * _unique_cells_base;
+  uint32_t * _vector_base;
 
   uint32_t * _row_ptr;
   uint32_t * _end;
