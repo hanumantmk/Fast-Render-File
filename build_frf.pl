@@ -6,7 +6,6 @@ use warnings;
 use bytes;
 
 use List::Util qw( sum );
-use Scalar::Util qw( refaddr );
 
 use Getopt::Long;
 
@@ -93,12 +92,14 @@ sub run {
       }
     }
 
-    my $cells_id = join('.', map { refaddr($_) } @cells);
+    my @data = map { $_->[0] eq 'static' ? $_->[1] : DYNAMIC } @cells;
+
+    my $cells_id = join('.', @data);
 
     if (! (exists $unique_cell_sets{$cells_id})) {
       $unique_cell_sets{$cells_id} = $unique_cells_written;
 
-      my $to_write = pack("N*", scalar(@cells), scalar(@vector), map { $_->[0] eq 'static' ? $_->[1] : DYNAMIC } @cells);
+      my $to_write = pack("N*", scalar(@cells), scalar(@vector), @data);
       $unique_cells_written += length($to_write);
       $unique_cells .= $to_write;
     }
