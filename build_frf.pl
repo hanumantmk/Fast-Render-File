@@ -7,11 +7,15 @@ use bytes;
 
 use List::Util qw( sum );
 
+use File::Temp;
+
 use Getopt::Long;
 
 use constant SMALL_HEADER  => 1 << 31;
 use constant MEDIUM_HEADER => 1 << 30;
 use constant DYNAMIC       => 3 << 30;
+
+use constant CACHE_SIZE => 100_000;
 
 my $content_file;
 my $p13n_file;
@@ -23,16 +27,18 @@ GetOptions(
   "output=s"  => \$output_file,
 );
 
+$output_file or die "Please Enter an output_file";
+
 open my $p13n_ifd, $p13n_file or die "Terribly: $!";
 
 my $content = do $content_file;
 
-open my $header, "> $output_file.1" or die "Couldn't open output_file: $!";
-open my $string_table, "> $output_file.2" or die "Couldn't open string_table: $!";
-open my $unique_cells, "> $output_file.3" or die "Couldn't open unique_cells: $!";
-open my $vector, "> $output_file.4" or die "Couldn't open vector: $!";
+my @fhs = map { File::Temp->new(
+  TEMPLATE => "$output_file.XXXXX",
+) } 1..4;
 
-my %strings;
+my ($header, $string_table, $unique_cells, $vector) = @fhs;
+
 my %unique_cell_sets;
 my $unique_cells_written = 0;
 my $string_table_written = 0;
@@ -47,14 +53,12 @@ print $header pack("NNNN",
   16 + $string_table_written + $unique_cells_written,
 );
 
-system("cat " . join(" ", map { "$output_file.$_" } (1..4) ) . " > $output_file");
-
-unlink map { "$output_file.$_" } 1..4;
+system("cat " . join(" ", map { $_->filename } (@fhs) ) . " > $output_file");
 
 exit 0;
 
 sub run {
-  my $cc = FRF::LazyContent->new($content, \&add_to_string_table)->to_cells;
+  my $cc = FRF::LazyContent->new($content)->to_cells;
 
   while (my $line = <$p13n_ifd>) {
     chomp $line;
@@ -110,45 +114,50 @@ sub run {
 }
 
 
-my $added_string = 100_000;
-sub add_to_string_table {
-#  my $string = shift;
+my %strings;
+my $added_string = CACHE_SIZE;
+use constant STRING_TABLE_DISPATCH => [
+  [ SMALL_HEADER,  "C", 1 ],
+  [ MEDIUM_HEADER, "n", 2 ],
+  [ 0,             "N", 4 ],
+];
 
-  if(! (exists $strings{$_[0]})) {
-    unless ($added_string--) {
-      $added_string = 100_000;
+sub add_to_string_table {
+  my $string = shift;
+
+  if(! (exists $strings{$string})) {
+    if (CACHE_SIZE != -1 && ! $added_string--) {
+      $added_string = CACHE_SIZE;
       %strings = ();
     }
 
-    my $length = length($_[0]);
+    my $length = length($string);
 
-    if ($length >> 8) {
-      $strings{$_[0]} = $string_table_written | SMALL_HEADER;
-      print $string_table pack("C/A*", $length, $_[0]);
-      $string_table_written += $length + 1;
-    } elsif ($length >> 16) {
-      $strings{$_[0]} = $string_table_written | MEDIUM_HEADER;
-      print $string_table pack("n/A*", $length, $_[0]);
-      $string_table_written += $length + 2;
+    my $dispatch;
+
+    if ($length < 2 ** 8) {
+      $dispatch = STRING_TABLE_DISPATCH->[0];
+    } elsif ($length < 2 ** 16) {
+      $dispatch = STRING_TABLE_DISPATCH->[1];
     } else {
-      $strings{$_[0]} = $string_table_written;
-      print $string_table pack("N/A*", $length, $_[0]);
-      $string_table_written += $length + 4;
+      $dispatch = STRING_TABLE_DISPATCH->[2];
     }
 
+    $strings{$string} = $string_table_written | $dispatch->[0];
+    print $string_table pack($dispatch->[1], $length), $string;
+    $string_table_written += $length + $dispatch->[2];
   }
 
-  return $strings{$_[0]};
+  return $strings{$string};
 }
 
 package FRF::LazyContent;
 
 sub new {
-  my ($class, $c, $add_to_string_table) = @_;
+  my ($class, $c) = @_;
 
   return bless {
-    c                   => $c,
-    add_to_string_table => $add_to_string_table,
+    c => $c,
   }, $class;
 }
 
@@ -186,13 +195,13 @@ sub to_cells {
 	      $_, (ref $self)->new({
 		body    => $d->{alternatives}{$_},
 		context => $context,
-	      }, $self->{add_to_string_table}),
+	      }),
 	    } keys %{$d->{alternatives}}
 	  },
 	  default => (ref $self)->new({
 	    body    => $d->{default},
 	    context => $context,
-	  }, $self->{add_to_string_table}),
+	  }),
 	};
       }
     }
@@ -204,7 +213,7 @@ sub to_cells {
     my ($before, $tag) = ($1, $2);
 
     if ($before ne '') {
-      push @cc, ['static' => $self->{add_to_string_table}->($before)];
+      push @cc, ['static' => main::add_to_string_table($before)];
     }
     
     if (exists $context->{p13n_lookup}{$tag}) {
@@ -217,7 +226,7 @@ sub to_cells {
   }
 
   if ($content ne '') {
-    push @cc, ['static' => $self->{add_to_string_table}->($content)];
+    push @cc, ['static' => main::add_to_string_table($content)];
   }
 
   $self->{cells} = \@cc;
