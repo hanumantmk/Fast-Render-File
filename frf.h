@@ -1,14 +1,15 @@
 #define _GNU_SOURCE
 
-#include <stdio.h>
+#include <arpa/inet.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <stdlib.h>
-#include <arpa/inet.h>
 #include <sys/uio.h>
-#include <limits.h>
 
 typedef struct frf {
   char     * file_name;
@@ -34,3 +35,7 @@ uint32_t frf_get_offset(frf_t * frf);
 int frf_seek(frf_t * frf, uint32_t offset);
 
 int _frf_iovec(frf_t * frf, struct iovec * iov);
+
+int frf_render_to_buffer(frf_t * frf, char * buf, int buf_size);
+
+int frf_get_render_size(frf_t * frf);

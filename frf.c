@@ -128,6 +128,22 @@ uint32_t frf_get_offset(frf_t * frf)
   return (char *)(frf->_row_ptr) - (char *)(frf->_mmap_base);
 }
 
+int frf_get_render_size(frf_t * frf)
+{
+  struct iovec iov[IOV_MAX];
+
+  int iov_cnt = _frf_iovec(frf, iov);
+  int i;
+
+  int acc = 0;
+
+  for (i = 0; i < iov_cnt; i++) {
+    acc += iov[i].iov_len;
+  }
+
+  return acc;
+}
+
 int frf_seek(frf_t * frf, uint32_t offset)
 {
   if ((frf->_row_ptr = ((uint32_t *)(((char *)frf->_mmap_base) + offset))) >= frf->_end) {
@@ -135,4 +151,29 @@ int frf_seek(frf_t * frf, uint32_t offset)
   } else {
     return 0;
   }
+}
+
+int frf_render_to_buffer(frf_t * frf, char * buf, int buf_size)
+{
+  struct iovec iov[IOV_MAX];
+
+  int iov_cnt = _frf_iovec(frf, iov);
+  int i;
+  int written = 0;
+  int len;
+  char * buf_ptr = buf;
+
+  for (i = 0; i < iov_cnt; i++) {
+    len = iov[i].iov_len;
+
+    if (written + len > buf_size) {
+      return -1;
+    }
+
+    memcpy(buf_ptr, iov[i].iov_base, len);
+    buf_ptr += len;
+    written += len;
+  }
+
+  return written;
 }
