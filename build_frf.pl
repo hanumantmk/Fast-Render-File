@@ -27,11 +27,10 @@ open my $p13n_ifd, $p13n_file or die "Terribly: $!";
 
 my $content = do $content_file;
 
-my $offsets = '';
-my $string_table = '';
-my $vector_header = pack("NN", 0, 0);
-my $unique_cells = '';
-my $vector = '';
+open my $header, "> $output_file.1" or die "Couldn't open output_file: $!";
+open my $string_table, "> $output_file.2" or die "Couldn't open string_table: $!";
+open my $unique_cells, "> $output_file.3" or die "Couldn't open unique_cells: $!";
+open my $vector, "> $output_file.4" or die "Couldn't open vector: $!";
 
 my %strings;
 my %unique_cell_sets;
@@ -41,16 +40,16 @@ my $num_lines = 0;
 
 run();
 
-my $unique_cells_size = length($unique_cells);
-my $string_table_size = length($string_table);
-
-$offsets = pack("NNN",
+print $header pack("NNNN",
+  $num_lines,
   16,
-  16 + $string_table_size,
-  16 + $string_table_size + $unique_cells_size,
+  16 + $string_table_written,
+  16 + $string_table_written + $unique_cells_written,
 );
 
-print pack("N", $num_lines), $offsets, $string_table, $unique_cells, $vector;
+system("cat " . join(" ", map { "$output_file.$_" } (1..4) ) . " > $output_file");
+
+unlink map { "$output_file.$_" } 1..4;
 
 exit 0;
 
@@ -101,40 +100,45 @@ sub run {
 
       my $to_write = pack("N*", scalar(@cells), scalar(@vector), @data);
       $unique_cells_written += length($to_write);
-      $unique_cells .= $to_write;
+      print $unique_cells $to_write;
     }
 
-    $vector .= pack("N*", $unique_cell_sets{$cells_id}, @vector);
+    print $vector pack("N*", $unique_cell_sets{$cells_id}, @vector);
 
     $num_lines++;
   }
 }
 
 
+my $added_string = 100_000;
 sub add_to_string_table {
-  my ($string) = @_;
+#  my $string = shift;
 
-  if (! defined $string) {
-    die "Can't have undefined string";
-  } elsif (! (exists $strings{$string})) {
-    my $length = length($string);
+  if(! (exists $strings{$_[0]})) {
+    unless ($added_string--) {
+      $added_string = 100_000;
+      %strings = ();
+    }
 
-    if ($length < 2 ** 8) {
-      $strings{$string} = $string_table_written | SMALL_HEADER;
-      $string_table .= (pack("C", $length) . $string);
+    my $length = length($_[0]);
+
+    if ($length >> 8) {
+      $strings{$_[0]} = $string_table_written | SMALL_HEADER;
+      print $string_table pack("C/A*", $length, $_[0]);
       $string_table_written += $length + 1;
-    } elsif ($length < 2 ** 16) {
-      $strings{$string} = $string_table_written | MEDIUM_HEADER;
-      $string_table .= (pack("n", $length) . $string);
+    } elsif ($length >> 16) {
+      $strings{$_[0]} = $string_table_written | MEDIUM_HEADER;
+      print $string_table pack("n/A*", $length, $_[0]);
       $string_table_written += $length + 2;
     } else {
-      $strings{$string} = $string_table_written;
-      $string_table .= (pack("N", $length) . $string);
+      $strings{$_[0]} = $string_table_written;
+      print $string_table pack("N/A*", $length, $_[0]);
       $string_table_written += $length + 4;
     }
+
   }
 
-  return $strings{$string};
+  return $strings{$_[0]};
 }
 
 package FRF::LazyContent;
