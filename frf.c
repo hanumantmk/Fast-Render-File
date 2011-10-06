@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "frf.h"
 
 #define FRF_SMALL_HEADER_MASK  1 << 31
@@ -42,6 +40,25 @@ int frf_init(frf_t * frf, char * file_name)
   frf->_row_ptr = frf->_vector_base;
 
   return 0;
+}
+
+frf_t * frf_new(char * file_name)
+{
+  frf_t * frf = malloc(sizeof(frf_t));
+
+  if (frf_init(frf, file_name)) {
+    free(frf);
+    return NULL;
+
+  }
+
+  return frf;
+}
+
+void frf_destroy(frf_t * frf)
+{
+  free(frf);
+  return;
 }
 
 int _frf_iovec(frf_t * frf, struct iovec * iov)

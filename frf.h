@@ -1,4 +1,6 @@
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -39,3 +41,7 @@ int _frf_iovec(frf_t * frf, struct iovec * iov);
 int frf_render_to_buffer(frf_t * frf, char * buf, int buf_size);
 
 int frf_get_render_size(frf_t * frf);
+
+frf_t * frf_new(char * file_name);
+
+void frf_destroy(frf_t * frf);

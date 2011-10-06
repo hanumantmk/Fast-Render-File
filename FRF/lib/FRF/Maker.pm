@@ -1,4 +1,4 @@
-package FRF;
+package FRF::Maker;
 
 use strict;
 use warnings;
@@ -23,7 +23,6 @@ use constant STRING_TABLE_DISPATCH => [
   [ 0,             "N", 4 ],
 ];
 
-
 sub create {
   my ($content, $p13n_fh, $output_filename) = @_;
   
@@ -40,7 +39,7 @@ sub create {
   my $add_to_string_table = make_add_to_string_table($fhs{string_table}, \$string_table_written);
   my $add_to_uniq_cells   = make_add_uniq_cells($fhs{unique_cells}, \$unique_cells_written);
 
-  my $cc = FRF::LazyContent->new($content, $add_to_string_table)->to_cells;
+  my $cc = FRF::Maker::LazyContent->new($content, $add_to_string_table)->to_cells;
 
   while (my $line = <$p13n_fh>) {
     chomp $line;
@@ -151,7 +150,7 @@ sub make_add_uniq_cells {
   }
 }
 
-package FRF::LazyContent;
+package FRF::Maker::LazyContent;
 
 sub new {
   my ($class, $c, $add_to_string_table) = @_;

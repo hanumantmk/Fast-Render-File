@@ -2,7 +2,7 @@
 
 use strict;
 
-use FRF;
+use FRF::Maker;
 
 use Getopt::Long;
 
@@ -22,6 +22,6 @@ open my $p13n_ifd, $p13n_file or die "Terribly: $!";
 
 my $content = do $content_file;
 
-FRF::create($content, $p13n_ifd, $output_file);
+FRF::Maker::create($content, $p13n_ifd, $output_file);
 
 exit 0;

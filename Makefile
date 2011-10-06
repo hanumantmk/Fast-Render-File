@@ -1,20 +1,28 @@
-CC=gcc
+TARGETS = render stat
+LIBS = frf.o
+LIBS_HEADERS = frf.h
 #CFLAGS= -O3
-CFLAGS= -Wall -g
+CFLAGS += -Wall -ggdb
 
-render.c: Makefile frf.h
+default: $(TARGETS) libfrf.a
 
-render: render.c frf.o
+%.o: %.c Makefile $(LIBS_HEADERS)
+	$(CC) $(CFLAGS) -c $<
 
-stat: stat.c frf.o
+$(TARGETS): % : %.o libfrf.a
+	$(CC) $(CFLAGS) $^ -o $@
 
-test.frf: content.txt p13n.txt build_frf.pl
-	./build_frf.pl --content content.txt --p13n p13n.txt --output test.frf
+libfrf.a: $(LIBS)
+	ar rcs $@ $^
 
-clean:
-	rm -f test.frf render stat test_output.txt *.o
+test.frf: data/content.txt data/p13n.txt bin/build_frf.pl
+	PERL5LIB=FRF/lib bin/build_frf.pl --content data/content.txt --p13n data/p13n.txt --output test.frf
 
 test: render stat test.frf
 	time ./render test.frf > /dev/null
 	./render test.frf seek `./render test.frf get_offset 10` | grep -c oxto0@0x2fp.net
 	./stat test.frf
+
+clean:
+	rm -f test.frf $(TARGETS) *.o *.a
+
