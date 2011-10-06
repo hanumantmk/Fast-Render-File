@@ -1,0 +1,3 @@
+#!/bin/sh
+export PERL5LIB=FRF/lib:FRF/blib/arch:FRF/blib/lib
+exec $@

@@ -23,150 +23,168 @@ use constant STRING_TABLE_DISPATCH => [
   [ 0,             "N", 4 ],
 ];
 
-sub create {
-  my ($content, $p13n_fh, $output_filename) = @_;
+sub new {
+  my ($class, $options) = @_;
+
+  $options->{content} ||= '';
+  $options->{file_name} ||= 'default.frf';
+
+  my $self = bless {
+    file_name => $options->{file_name},
+    content   => $options->{content},
+    fhs       => {map {
+      $_, File::Temp->new(
+	TEMPLATE => $options->{file_name} . ".XXXXX",
+      )
+    } @{+FRF_REGIONS}},
+    unique_cells_written => 0,
+    string_table_written => 0,
+    num_lines => 0,
+
+    strings => {},
+    added_strings => 0,
+  };
+
+  $self->{cc} = FRF::Maker::LazyContent->new($options->{content})->to_cells($self);
+
+  return $self;
+}
+
+sub add {
+  my ($self, $p13n) = @_;
   
-  my %fhs = map {
-    $_, File::Temp->new(
-      TEMPLATE => "$output_filename.XXXXX",
-    )
-  } @{+FRF_REGIONS};
+  my @cells;
+  my @vector;
 
-  my $unique_cells_written = 0;
-  my $string_table_written = 0;
-  my $num_lines = 0;
+  my @todo = @{$self->{cc}};
+  while (my $item = shift @todo) {
+    if ($item->[0] eq 'static') {
+      push @cells, $item;
+    } elsif ($item->[0] eq 'p13n') {
+      push @cells, $item;
+      push @vector, $self->add_to_string_table($p13n->[$item->[1]]);
+    } elsif ($item->[0] eq 'dc') {
+      my $dc = $item->[1];
 
-  my $add_to_string_table = make_add_to_string_table($fhs{string_table}, \$string_table_written);
-  my $add_to_uniq_cells   = make_add_uniq_cells($fhs{unique_cells}, \$unique_cells_written);
+      my $string = $p13n->[$dc->{key}];
 
-  my $cc = FRF::Maker::LazyContent->new($content, $add_to_string_table)->to_cells;
-
-  while (my $line = <$p13n_fh>) {
-    chomp $line;
-
-    my @p13n = split("\t", $line);
-    my @cells;
-    my @vector;
-
-    my @todo = @$cc;
-    while (my $item = shift @todo) {
-      if ($item->[0] eq 'static') {
-	push @cells, $item;
-      } elsif ($item->[0] eq 'p13n') {
-	push @cells, $item;
-	push @vector, $add_to_string_table->($p13n[$item->[1]]);
-      } elsif ($item->[0] eq 'dc') {
-	my $dc = $item->[1];
-
-	my $string = $p13n[$dc->{key}];
-
-	my $new_work;
-	if (exists $dc->{alternatives}{$string}) {
-	  $new_work = $dc->{alternatives}{$string};
-	} else {
-	  $new_work = $dc->{default};
-	}
-
-	unshift @todo, @{$new_work->to_cells};
+      my $new_work;
+      if (exists $dc->{alternatives}{$string}) {
+	$new_work = $dc->{alternatives}{$string};
       } else {
-	die "unknown content type";
+	$new_work = $dc->{default};
       }
+
+      unshift @todo, @{$new_work->to_cells($self)};
+    } else {
+      die "unknown content type";
     }
-
-    my $offset = $add_to_uniq_cells->(\@cells, \@vector);
-
-    $fhs{vector}->print(pack("N*", $offset, @vector));
-
-    $num_lines++;
   }
 
-  $fhs{header}->print(pack("NNNN",
-    $num_lines,
+  my $offset = $self->add_to_uniq_cells(\@cells, \@vector);
+
+  $self->{fhs}{vector}->print(pack("N*", $offset, @vector));
+
+  $self->{num_lines}++;
+
+  return;
+}
+
+sub finish {
+  my $self = shift;
+
+  $self->{fhs}{header}->print(pack("NNNN",
+    $self->{num_lines},
     16,
-    16 + $string_table_written,
-    16 + $string_table_written + $unique_cells_written,
+    16 + $self->{string_table_written},
+    16 + $self->{string_table_written} + $self->{unique_cells_written},
   ));
 
-  system("cat " . join(" ", map { $fhs{$_}->filename } @{+FRF_REGIONS} ) . " > $output_filename");
+  system("cat " . join(" ", map { $self->{fhs}{$_}->filename } @{+FRF_REGIONS} ) . " > " . $self->{file_name});
+
+  %$self = (
+    file_name => $self->{file_name},
+    done      => 1,
+  );
+
+  return;
 }
 
-sub make_add_to_string_table {
-  my ($string_table, $string_table_written) = @_;
+sub load {
+  my $self = shift;
 
-  my %strings;
-  my $added_string = CACHE_SIZE;
+  $self->{done} or die "Can't load an unfinished frf";
 
-  return sub {
-    my $string = shift;
+  require FRF;
 
-    if(! (exists $strings{$string})) {
-      if (CACHE_SIZE != -1 && ! $added_string--) {
-	$added_string = CACHE_SIZE;
-	%strings = ();
-      }
-
-      my $length = length($string);
-
-      my $dispatch;
-
-      if ($length < 2 ** 8) {
-	$dispatch = STRING_TABLE_DISPATCH->[0];
-      } elsif ($length < 2 ** 16) {
-	$dispatch = STRING_TABLE_DISPATCH->[1];
-      } else {
-	$dispatch = STRING_TABLE_DISPATCH->[2];
-      }
-
-      $strings{$string} = $$string_table_written | $dispatch->[0];
-      print $string_table pack($dispatch->[1], $length), $string;
-      $$string_table_written += $length + $dispatch->[2];
-    }
-
-    return $strings{$string};
-  }
+  return FRF->load($self->{file_name});
 }
 
-sub make_add_uniq_cells {
-  my ($unique_cells, $unique_cells_written) = @_;
+sub add_to_string_table {
+  my ($self, $string) = @_;
 
-  my %unique_cell_sets;
+  my $strings = $self->{strings};
 
-  return sub {
-    my ($cells, $vector) = @_;
-
-    my @data = map { $_->[0] eq 'static' ? $_->[1] : DYNAMIC } @$cells;
-
-    my $cells_id = join('.', @data);
-
-    if (! (exists $unique_cell_sets{$cells_id})) {
-      $unique_cell_sets{$cells_id} = $$unique_cells_written;
-
-      my $to_write = pack("N*", scalar(@$cells), scalar(@$vector), @data);
-      $$unique_cells_written += length($to_write);
-      print $unique_cells $to_write;
+  if(! (exists $strings->{$string})) {
+    if (CACHE_SIZE != -1 && $self->{added_strings}++ > CACHE_SIZE) {
+      $self->{added_strings} = 0;
+      %$strings = ();
     }
 
-    return $unique_cell_sets{$cells_id};
+    my $length = length($string);
+
+    my $dispatch;
+
+    if ($length < 2 ** 8) {
+      $dispatch = STRING_TABLE_DISPATCH->[0];
+    } elsif ($length < 2 ** 16) {
+      $dispatch = STRING_TABLE_DISPATCH->[1];
+    } else {
+      $dispatch = STRING_TABLE_DISPATCH->[2];
+    }
+
+    $strings->{$string} = $self->{string_table_written} | $dispatch->[0];
+    $self->{fhs}{string_table}->print(pack($dispatch->[1], $length), $string);
+    $self->{string_table_written} += $length + $dispatch->[2];
   }
+
+  return $strings->{$string};
+}
+
+sub add_to_uniq_cells {
+  my ($self, $cells, $vector) = @_;
+
+  my $unique_cell_sets = $self->{unique_cell_sets};
+
+  my @data = map { $_->[0] eq 'static' ? $_->[1] : DYNAMIC } @$cells;
+
+  my $cells_id = join('.', @data);
+
+  if (! (exists $unique_cell_sets->{$cells_id})) {
+    $unique_cell_sets->{$cells_id} = $self->{unique_cells_written};
+
+    my $to_write = pack("N*", scalar(@$cells), scalar(@$vector), @data);
+    $self->{unique_cells_written} += length($to_write);
+    $self->{fhs}{unique_cells}->print($to_write);
+  }
+
+  return $unique_cell_sets->{$cells_id};
 }
 
 package FRF::Maker::LazyContent;
 
 sub new {
-  my ($class, $c, $add_to_string_table) = @_;
+  my ($class, $c) = @_;
 
   return bless {
-    c                   => $c,
-    add_to_string_table => $add_to_string_table,
+    c => $c,
   }, $class;
 }
 
 sub to_cells {
-  my $self = shift;
+  my ($self, $maker) = @_;
 
   return $self->{cells} if $self->{cells};
-
-  my $add_to_string_table = $self->{add_to_string_table};
 
   my $c = $self->{c};
 
@@ -197,13 +215,13 @@ sub to_cells {
 	      $_, (ref $self)->new({
 		body    => $d->{alternatives}{$_},
 		context => $context,
-	      }, $add_to_string_table),
+	      }),
 	    } keys %{$d->{alternatives}}
 	  },
 	  default => (ref $self)->new({
 	    body    => $d->{default},
 	    context => $context,
-	  }, $add_to_string_table),
+	  }),
 	};
       }
     }
@@ -215,7 +233,7 @@ sub to_cells {
     my ($before, $tag) = ($1, $2);
 
     if ($before ne '') {
-      push @cc, ['static' => $add_to_string_table->($before)];
+      push @cc, ['static' => $maker->add_to_string_table($before)];
     }
     
     if (exists $context->{p13n_lookup}{$tag}) {
@@ -228,7 +246,7 @@ sub to_cells {
   }
 
   if ($content ne '') {
-    push @cc, ['static' => $add_to_string_table->($content)];
+    push @cc, ['static' => $maker->add_to_string_table($content)];
   }
 
   $self->{cells} = \@cc;

@@ -5,6 +5,7 @@ LIBS_HEADERS = frf.h
 CFLAGS += -Wall -ggdb
 
 default: $(TARGETS) libfrf.a
+	cd FRF; perl Makefile.PL; make
 
 %.o: %.c Makefile $(LIBS_HEADERS)
 	$(CC) $(CFLAGS) -c $<
@@ -15,8 +16,8 @@ $(TARGETS): % : %.o libfrf.a
 libfrf.a: $(LIBS)
 	ar rcs $@ $^
 
-test.frf: data/content.txt data/p13n.txt bin/build_frf.pl
-	PERL5LIB=FRF/lib bin/build_frf.pl --content data/content.txt --p13n data/p13n.txt --output test.frf
+test.frf: data/content.txt data/p13n.txt bin/build_frf.pl bin/run_with_env
+	bin/run_with_env bin/build_frf.pl --content data/content.txt --p13n data/p13n.txt --output test.frf
 
 test: render stat test.frf
 	time ./render test.frf > /dev/null
@@ -25,4 +26,5 @@ test: render stat test.frf
 
 clean:
 	rm -f test.frf $(TARGETS) *.o *.a
+	cd FRF; make clean; rm Makefile.old
 

@@ -10,7 +10,7 @@ our $VERSION = '0.01';
 require XSLoader;
 XSLoader::load('FRF', $VERSION);
 
-sub new {
+sub load {
   return bless FRF::_new($_[1]);
 }
 
