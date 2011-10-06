@@ -43,6 +43,8 @@ sub new {
 
     strings => {},
     added_strings => 0,
+
+    unique_cell_sets => {},
   };
 
   $self->{cc} = FRF::Maker::LazyContent->new($options->{content})->to_cells($self);
@@ -50,9 +52,64 @@ sub new {
   return $self;
 }
 
+use constant ADD_TO_STRING_TABLE => <<'ADD_TO_STRING_TABLE'
+do {
+  my $strings = $self->{strings};
+
+  if(! (exists $strings->{$string})) {
+    if (CACHE_SIZE != -1 && $self->{added_strings}++ > CACHE_SIZE) {
+      $self->{added_strings} = 0;
+      %$strings = ();
+    }
+
+    my $length = length($string);
+
+    my $dispatch;
+
+    if ($length < 2 ** 8) {
+      $dispatch = STRING_TABLE_DISPATCH->[0];
+    } elsif ($length < 2 ** 16) {
+      $dispatch = STRING_TABLE_DISPATCH->[1];
+    } else {
+      $dispatch = STRING_TABLE_DISPATCH->[2];
+    }
+
+    $strings->{$string} = $self->{string_table_written} | $dispatch->[0];
+    $self->{fhs}{string_table}->print(pack($dispatch->[1], $length), $string);
+    $self->{string_table_written} += $length + $dispatch->[2];
+  }
+
+  $self->{strings}{$string};
+}
+ADD_TO_STRING_TABLE
+;
+
+use constant ADD_TO_UNIQ_CELLS => <<'ADD_TO_UNIQ_CELLS'
+do {
+  my $unique_cell_sets = $self->{unique_cell_sets};
+
+  my @data = map { $_->[0] eq 'static' ? $_->[1] : DYNAMIC } @$cells;
+
+  my $cells_id = join('.', @data);
+
+  if (! (exists $unique_cell_sets->{$cells_id})) {
+    $unique_cell_sets->{$cells_id} = $self->{unique_cells_written};
+
+    my $to_write = pack("N*", scalar(@$cells), scalar(@$vector), @data);
+    $self->{unique_cells_written} += length($to_write);
+    $self->{fhs}{unique_cells}->print($to_write);
+  }
+
+  $unique_cell_sets->{$cells_id};
+}
+ADD_TO_UNIQ_CELLS
+;
+
+BEGIN {
+eval <<'ADD'
 sub add {
   my ($self, $p13n) = @_;
-  
+
   my @cells;
   my @vector;
 
@@ -62,7 +119,11 @@ sub add {
       push @cells, $item;
     } elsif ($item->[0] eq 'p13n') {
       push @cells, $item;
-      push @vector, $self->add_to_string_table($p13n->[$item->[1]]);
+      my $string = $p13n->[$item->[1]];
+      push @vector, 
+ADD
+. ADD_TO_STRING_TABLE . <<'ADD'
+;
     } elsif ($item->[0] eq 'dc') {
       my $dc = $item->[1];
 
@@ -81,14 +142,43 @@ sub add {
     }
   }
 
-  my $offset = $self->add_to_uniq_cells(\@cells, \@vector);
+  my $cells = \@cells;
+  my $vector = \@vector;
 
-  $self->{fhs}{vector}->print(pack("N*", $offset, @vector));
+  $self->{fhs}{vector}->print(pack("N*",
+ADD
+. ADD_TO_UNIQ_CELLS . <<'ADD'
+, @vector));
 
   $self->{num_lines}++;
 
   return;
 }
+ADD
+; $@ and die $@;
+
+eval <<'ADD'
+sub add_to_string_table {
+  my ($self, $string) = @_;
+
+  return
+ADD
+. ADD_TO_STRING_TABLE . <<'ADD'
+}
+ADD
+; $@ and die $@;
+
+eval <<'ADD'
+sub add_to_uniq_cells {
+  my ($self, $cells, $vector) = @_;
+
+  return
+ADD
+. ADD_TO_UNIQ_CELLS . <<'ADD'
+}
+ADD
+; $@ and die $@;
+};
 
 sub finish {
   my $self = shift;
@@ -118,57 +208,6 @@ sub load {
   require FRF;
 
   return FRF->load($self->{file_name});
-}
-
-sub add_to_string_table {
-  my ($self, $string) = @_;
-
-  my $strings = $self->{strings};
-
-  if(! (exists $strings->{$string})) {
-    if (CACHE_SIZE != -1 && $self->{added_strings}++ > CACHE_SIZE) {
-      $self->{added_strings} = 0;
-      %$strings = ();
-    }
-
-    my $length = length($string);
-
-    my $dispatch;
-
-    if ($length < 2 ** 8) {
-      $dispatch = STRING_TABLE_DISPATCH->[0];
-    } elsif ($length < 2 ** 16) {
-      $dispatch = STRING_TABLE_DISPATCH->[1];
-    } else {
-      $dispatch = STRING_TABLE_DISPATCH->[2];
-    }
-
-    $strings->{$string} = $self->{string_table_written} | $dispatch->[0];
-    $self->{fhs}{string_table}->print(pack($dispatch->[1], $length), $string);
-    $self->{string_table_written} += $length + $dispatch->[2];
-  }
-
-  return $strings->{$string};
-}
-
-sub add_to_uniq_cells {
-  my ($self, $cells, $vector) = @_;
-
-  my $unique_cell_sets = $self->{unique_cell_sets};
-
-  my @data = map { $_->[0] eq 'static' ? $_->[1] : DYNAMIC } @$cells;
-
-  my $cells_id = join('.', @data);
-
-  if (! (exists $unique_cell_sets->{$cells_id})) {
-    $unique_cell_sets->{$cells_id} = $self->{unique_cells_written};
-
-    my $to_write = pack("N*", scalar(@$cells), scalar(@$vector), @data);
-    $self->{unique_cells_written} += length($to_write);
-    $self->{fhs}{unique_cells}->print($to_write);
-  }
-
-  return $unique_cell_sets->{$cells_id};
 }
 
 package FRF::Maker::LazyContent;
