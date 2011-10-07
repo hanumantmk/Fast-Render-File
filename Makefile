@@ -26,5 +26,4 @@ test: render stat test.frf
 
 clean:
 	rm -f test.frf $(TARGETS) *.o *.a
-	cd FRF; make clean; rm Makefile.old
-
+	cd FRF; make clean; rm -f Makefile.old

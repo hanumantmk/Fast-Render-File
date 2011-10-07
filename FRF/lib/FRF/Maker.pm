@@ -9,19 +9,9 @@ use List::Util qw( sum );
 
 use File::Temp;
 
-use constant SMALL_HEADER  => 1 << 31;
-use constant MEDIUM_HEADER => 1 << 30;
-use constant DYNAMIC       => 3 << 30;
-
 use constant CACHE_SIZE => 100_000;
 
 use constant FRF_REGIONS => [qw( header string_table unique_cells vector )];
-
-use constant STRING_TABLE_DISPATCH => [
-  [ SMALL_HEADER,  "C", 1 ],
-  [ MEDIUM_HEADER, "n", 2 ],
-  [ 0,             "N", 4 ],
-];
 
 sub new {
   my ($class, $options) = @_;
@@ -38,7 +28,7 @@ sub new {
       )
     } @{+FRF_REGIONS}},
     unique_cells_written => 0,
-    string_table_written => 0,
+    string_table_written => 1,
     num_lines => 0,
 
     strings => {},
@@ -51,6 +41,11 @@ sub new {
 
   return $self;
 }
+
+use constant STRING_TABLE_DISPATCH => [
+  [ 0,        "C", 1 ],
+  [ 1 << 31,  "N", 4 ],
+];
 
 use constant ADD_TO_STRING_TABLE => <<'ADD_TO_STRING_TABLE'
 do {
@@ -66,20 +61,18 @@ do {
 
     my $dispatch;
 
-    if ($length < 2 ** 8) {
+    if ($length < 2 ** 7) {
       $dispatch = STRING_TABLE_DISPATCH->[0];
-    } elsif ($length < 2 ** 16) {
-      $dispatch = STRING_TABLE_DISPATCH->[1];
     } else {
-      $dispatch = STRING_TABLE_DISPATCH->[2];
+      $dispatch = STRING_TABLE_DISPATCH->[1];
     }
 
-    $strings->{$string} = $self->{string_table_written} | $dispatch->[0];
-    $self->{fhs}{string_table}->print(pack($dispatch->[1], $length), $string);
+    $strings->{$string} = $self->{string_table_written};
+    $self->{fhs}{string_table}->print(pack($dispatch->[1], $length | $dispatch->[0]), $string);
     $self->{string_table_written} += $length + $dispatch->[2];
   }
 
-  $self->{strings}{$string};
+  $strings->{$string};
 }
 ADD_TO_STRING_TABLE
 ;
@@ -88,7 +81,7 @@ use constant ADD_TO_UNIQ_CELLS => <<'ADD_TO_UNIQ_CELLS'
 do {
   my $unique_cell_sets = $self->{unique_cell_sets};
 
-  my @data = map { $_->[0] eq 'static' ? $_->[1] : DYNAMIC } @$cells;
+  my @data = map { $_->[0] eq 'static' ? $_->[1] : 0 } @$cells;
 
   my $cells_id = join('.', @data);
 
@@ -186,8 +179,8 @@ sub finish {
   $self->{fhs}{header}->print(pack("NNNN",
     $self->{num_lines},
     16,
-    16 + $self->{string_table_written},
-    16 + $self->{string_table_written} + $self->{unique_cells_written},
+    16 + $self->{string_table_written} - 1,
+    16 + $self->{string_table_written} - 1 + $self->{unique_cells_written},
   ));
 
   system("cat " . join(" ", map { $self->{fhs}{$_}->filename } @{+FRF_REGIONS} ) . " > " . $self->{file_name});

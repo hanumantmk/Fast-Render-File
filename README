@@ -11,22 +11,20 @@ HEADER
 
 
 STRING_TABLE
-# a series of length + string pairs.  Comes in 3 sizes
+# a series of length + string pairs.  Comes in 2 sizes
 
 # small
 1B - length
-NB - data
-
-# medium
-2B - length
 NB - data
 
 # large
 4B - length
 NB - data
 
-# the offsets that point in here have information about what kind of pair we've
-# got.
+# we differentiate between the two by the most significant bit (which comes
+# first as we're storing big endian).  If:
+1 - 31 bit length
+0 - 7 bit length
 
 
 UNIQUE_CELLS
@@ -47,11 +45,8 @@ NB - STRING_TABLE_POINTERS for dyanmic values
 
 STRING_TABLE_POINTERS
 Each string table pointer is a 32 bit unsigned int offset into the string
-table.  The 2 high bits hold special values:
-
-1 << 31 - pointer is to a small string
-1 << 30 - pointer is to a medium string
-0       - pointer is to a large string
+table.  Values are all one higher than needed, so we adjust down.
 
 and in the unique cell data
-3 << 30 - pointer can be found in the vector data
+0 - pointer can be found in the vector data.  Thus why the other points are 1
+    greater

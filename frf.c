@@ -1,8 +1,7 @@
 #include "frf.h"
 
-#define FRF_SMALL_HEADER_MASK  1 << 31
-#define FRF_MEDIUM_HEADER_MASK 1 << 30
-#define FRF_DYNAMIC            3 << 30
+#define FRF_HIGH_BIT   (1 << 7)
+#define FRF_LARGE_MASK (1 << 31)
 
 int frf_init(frf_t * frf, char * file_name)
 {
@@ -80,6 +79,7 @@ int _frf_iovec(frf_t * frf, struct iovec * iov)
   int num_elements;
 
   uint32_t index;
+  char len;
 
   unique_cell_offset = ntohl(*vec_ptr);
 
@@ -94,22 +94,20 @@ int _frf_iovec(frf_t * frf, struct iovec * iov)
   for (i = 0; i < num_elements; i++) {
     index = ntohl(*cell_ptr);
 
-    if (index == FRF_DYNAMIC) {
+    if (! index) {
       index = ntohl(*vec_ptr);
       vec_ptr++;
     }
+    index--;
 
-    if (index & FRF_SMALL_HEADER_MASK) {
-      index -= FRF_SMALL_HEADER_MASK;
+    len = *(string_table_base + index);
+
+    if (len & FRF_HIGH_BIT) {
+      iov[i].iov_len  = ntohl(*((uint32_t *)(string_table_base + index))) - FRF_LARGE_MASK;
+      iov[i].iov_base = string_table_base + index + 4;
+    } else {
       iov[i].iov_len  = *(string_table_base + index);
       iov[i].iov_base = string_table_base + index + 1;
-    } else if (index & FRF_MEDIUM_HEADER_MASK) {
-      index -= FRF_MEDIUM_HEADER_MASK;
-      iov[i].iov_len  = ntohs(*((uint16_t *)(string_table_base + index)));
-      iov[i].iov_base = string_table_base + index + 2;
-    } else {
-      iov[i].iov_len  = ntohl(*((uint32_t *)(string_table_base + index)));
-      iov[i].iov_base = string_table_base + index + 4;
     }
 
     cell_ptr++;
