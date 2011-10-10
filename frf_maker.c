@@ -2,9 +2,9 @@
 #include <assert.h>
 // #define NDEBUG
 
-frf_maker_p13n_t * make_p13n_lookup(json_t * p13n_json)
+frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
 {
-  frf_maker_p13n_t * p13n_lookup, * p13n_node;
+  frf_maker_str2ui_t * p13n_lookup, * p13n_node;
   p13n_lookup = NULL;
 
   int i;
@@ -13,8 +13,8 @@ frf_maker_p13n_t * make_p13n_lookup(json_t * p13n_json)
   for (i = 0; i < json_array_size(p13n_json); i++) {
     key = (char *)json_string_value(json_array_get(p13n_json, i));
 
-    p13n_node = malloc(sizeof(frf_maker_p13n_t));
-    p13n_node->key = key;
+    p13n_node = malloc(sizeof(frf_maker_str2ui_t));
+    p13n_node->str = key;
     p13n_node->offset = i;
 
     HASH_ADD_KEYPTR(hh, p13n_lookup, key, strlen(key), p13n_node);
@@ -60,18 +60,44 @@ static inline uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, ch
   return rval;
 }
 
+static inline frf_maker_cc_t * frf_maker_make_static_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
+{
+  frf_maker_cc_t * cc = NULL;
+
+  if (len > 0) {
+    cc = calloc(sizeof(frf_maker_cc_t), 1);
+    cc->type = FRF_MAKER_CC_TYPE_STATIC;
+    cc->val.offset = frf_maker_add_to_string_table(frf_maker, str, len);
+  }
+
+  return cc;
+}
+
+static inline frf_maker_cc_t * frf_maker_make_dynamic_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
+{
+  frf_maker_cc_t * cc = NULL;
+  frf_maker_str2ui_t * temp;
+
+  HASH_FIND(hh, frf_maker->content->p13n_lookup, str, len, temp);
+
+  if (temp) {
+    cc = calloc(sizeof(frf_maker_cc_t), 1);
+    cc->type = FRF_MAKER_CC_TYPE_P13N;
+    cc->val.p13n = temp->offset;
+  }
+
+  return cc;
+}
+
 void frf_maker_compile(frf_maker_t * frf_maker, frf_maker_content_t * content)
 {
   char * c;
 
-  frf_maker_p13n_t * p13n_temp;
-
   int rc;
   int ovector[9];
   int read = 0;
-  int size;
 
-  frf_maker_cc_t * cc_head = NULL, * cc_tail, * cc_temp;
+  frf_maker_cc_t * cc_head = NULL, * cc_temp;
 
   assert(content->is_compiled == 0);
 
@@ -83,52 +109,19 @@ void frf_maker_compile(frf_maker_t * frf_maker, frf_maker_content_t * content)
   assert(content_re);
 
   while ((rc = pcre_exec(content_re, NULL, c, strlen(c), read, 0, ovector, sizeof(ovector))) > 0) {
-    size = ovector[3] - ovector[2];
-    if (size > 0) {
-      cc_temp = malloc(sizeof(frf_maker_cc_t));
-      cc_temp->type = FRF_MAKER_CC_TYPE_STATIC;
-      cc_temp->val.offset = frf_maker_add_to_string_table(frf_maker, c + ovector[2], size);
-
-      if (cc_head) {
-	cc_tail->next = cc_temp;
-	cc_tail = cc_tail->next;
-      } else {
-	cc_head = cc_tail = cc_temp;
-      }
+    if ((cc_temp = frf_maker_make_static_cell(frf_maker, c + ovector[2], ovector[3] - ovector[2]))) {
+      DL_APPEND(cc_head, cc_temp);
     }
 
-    size = ovector[5] - ovector[4];
-
-    HASH_FIND(hh, frf_maker->content->p13n_lookup, c + ovector[4], size, p13n_temp);
-
-    if (p13n_temp) {
-      cc_temp = malloc(sizeof(frf_maker_cc_t));
-      cc_temp->type = FRF_MAKER_CC_TYPE_P13N;
-      cc_temp->val.p13n = p13n_temp->offset;
-
-      if (cc_head) {
-	cc_tail->next = cc_temp;
-	cc_tail = cc_tail->next;
-      } else {
-	cc_head = cc_tail = cc_temp;
-      }
+    if ((cc_temp = frf_maker_make_dynamic_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
+      DL_APPEND(cc_head, cc_temp);
     }
 
     c += ovector[1];
   }
 
-  size = strlen(c);
-  if (size > 0) {
-    cc_temp = malloc(sizeof(frf_maker_cc_t));
-    cc_temp->type = FRF_MAKER_CC_TYPE_STATIC;
-    cc_temp->val.offset = frf_maker_add_to_string_table(frf_maker, c, size);
-
-    if (cc_head) {
-      cc_tail->next = cc_temp;
-      cc_tail = cc_tail->next;
-    } else {
-      cc_head = cc_tail = cc_temp;
-    }
+  if ((cc_temp = frf_maker_make_static_cell(frf_maker, c, strlen(c)))) {
+    DL_APPEND(cc_head, cc_temp);
   }
 
   content->cc = cc_head;
@@ -187,6 +180,8 @@ static inline uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_ma
 {
   uint32_t rval, temp;
 
+  frf_maker_cc_t * elt;
+
   rval = frf_maker->unique_cells_written;
 
   temp = htonl(cells_cnt);
@@ -197,15 +192,14 @@ static inline uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_ma
   fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
   frf_maker->unique_cells_written += 4;
 
-  while(cells) {
-    if (cells->type == FRF_MAKER_CC_TYPE_STATIC) {
-      temp = htonl(cells->val.offset);
+  DL_FOREACH(cells, elt) {
+    if (elt->type == FRF_MAKER_CC_TYPE_STATIC) {
+      temp = htonl(elt->val.offset);
     } else {
       temp = 0;
     }
     fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
     frf_maker->unique_cells_written += 4;
-    cells = cells->next;
   }
 
   return rval;
@@ -239,70 +233,52 @@ int frf_maker_finish(frf_maker_t * frf_maker)
 int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths)
 {
   frf_maker_cc_t * stack = frf_maker->content->cc;
+  frf_maker_cc_t * stack_elt;
   frf_maker_cc_t * cells_head = NULL, * cells_temp, * cells_current;
-  frf_maker_vector_t * vector_head = NULL, * vector_temp, *vector_current;
+  frf_maker_vector_t * vector_head = NULL, * vector_temp, * vector_current;
   uint32_t uniq_vector_offset, vector_offset;
 
   int cells_cnt = 0, vector_cnt = 0;
 
-  while (stack) {
-    switch (stack->type) {
+  DL_FOREACH(stack, stack_elt) {
+    switch (stack_elt->type) {
       case FRF_MAKER_CC_TYPE_P13N:
         vector_cnt++;
-        vector_temp = malloc(sizeof(frf_maker_vector_t));
+        vector_temp = calloc(sizeof(frf_maker_vector_t), 1);
 	
-        vector_temp->offset = frf_maker_add_to_string_table(frf_maker, p13n[stack->val.p13n], lengths[stack->val.p13n]);
-	vector_temp->next = NULL;
+        vector_temp->offset = frf_maker_add_to_string_table(frf_maker, p13n[stack_elt->val.p13n], lengths[stack_elt->val.p13n]);
 
-        if (vector_head) {
-	  vector_current->next = vector_temp;
-	  vector_current = vector_temp;
-	} else {
-	  vector_head = vector_current = vector_temp;
-	}
+	DL_APPEND(vector_head, vector_temp);
+
 	// deliberate fallthrough
       case FRF_MAKER_CC_TYPE_STATIC:
         cells_cnt++;
-	cells_temp = malloc(sizeof(frf_maker_cc_t));
-	cells_temp->type = stack->type;
-	cells_temp->val.offset = stack->val.offset;
-	cells_temp->next = NULL;
-        if (cells_head) {
-	  cells_current->next = cells_temp;
-	  cells_current = cells_temp;
-	} else {
-	  cells_head = cells_current = cells_temp;
-	}
+	cells_temp = calloc(sizeof(frf_maker_cc_t), 1);
+	cells_temp->type = stack_elt->type;
+	cells_temp->val.offset = stack_elt->val.offset;
+
+	DL_APPEND(cells_head, cells_temp);
+
         break;
       default:
         perror("Shouldn't be here");
 	exit(1);
     }
-
-    stack = stack->next;
   }
 
   uniq_vector_offset = htonl(frf_maker_add_uniq_vector(frf_maker, cells_head, cells_cnt, vector_head, vector_cnt));
 
   fwrite(&uniq_vector_offset, 4, 1, frf_maker->vector_fh);
 
-  vector_temp = vector_head;
-  while(vector_temp) {
-    vector_offset = htonl(vector_temp->offset);
+  DL_FOREACH_SAFE(vector_head, vector_current, vector_temp) {
+    vector_offset = htonl(vector_current->offset);
     fwrite(&vector_offset, 4, 1, frf_maker->vector_fh);
-    vector_temp = vector_temp->next;
+
+    DL_DELETE(vector_head, vector_current);
   }
 
-  while(vector_head) {
-    vector_temp = vector_head;
-    vector_head = vector_head->next;
-    free(vector_temp);
-  }
-
-  while(cells_head) {
-    cells_temp = cells_head;
-    cells_head = cells_head->next;
-    free(cells_temp);
+  DL_FOREACH_SAFE(cells_head, cells_current, cells_temp) {
+    DL_DELETE(cells_head, cells_current);
   }
 
   frf_maker->num_rows++;

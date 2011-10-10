@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <pcre.h>
 #include "uthash.h"
+#include "utlist.h"
 #include <stdio.h>
 #include <error.h>
 
@@ -13,13 +14,6 @@ enum FRF_MAKER_CC_TYPE {
   FRF_MAKER_CC_TYPE_P13N
 };
 
-typedef struct frf_maker_p13n {
-  char * key;
-  int offset;
-
-  UT_hash_handle hh;
-} frf_maker_p13n_t;
-
 typedef struct frf_maker_str2ui {
   char * str;
   uint32_t offset;
@@ -27,17 +21,10 @@ typedef struct frf_maker_str2ui {
   UT_hash_handle hh;
 } frf_maker_str2ui_t;
 
-typedef struct frf_maker_uniq_cells_table {
-  char * key;
-  uint32_t offset;
-
-  UT_hash_handle hh;
-} frf_maker_uniq_cells_table_t;
-
 typedef struct frf_maker_vector {
   uint32_t offset;
 
-  struct frf_maker_vector * next;
+  struct frf_maker_vector * next, * prev;
 } frf_maker_vector_t;
 
 typedef struct frf_maker_cc {
@@ -47,14 +34,14 @@ typedef struct frf_maker_cc {
     uint32_t offset;
   } val;
 
-  struct frf_maker_cc * next;
+  struct frf_maker_cc * next, * prev;
 } frf_maker_cc_t;
 
 typedef struct frf_maker_content {
   int is_compiled;
   char * content;
   frf_maker_cc_t * cc;
-  frf_maker_p13n_t * p13n_lookup;
+  frf_maker_str2ui_t * p13n_lookup;
 } frf_maker_content_t;
 
 typedef struct frf_maker {
