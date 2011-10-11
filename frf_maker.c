@@ -14,7 +14,8 @@ frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
     key = (char *)json_string_value(json_array_get(p13n_json, i));
 
     p13n_node = malloc(sizeof(frf_maker_str2ui_t));
-    p13n_node->str = key;
+    p13n_node->str = calloc(strlen(key) + 1, 1);
+    memcpy(p13n_node->str, key, strlen(key));
     p13n_node->offset = i;
 
     HASH_ADD_KEYPTR(hh, p13n_lookup, key, strlen(key), p13n_node);
@@ -183,9 +184,12 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->uniq_cells_lookup = NULL;
 
   frf_maker->content->is_compiled = 0;
-  frf_maker->content->content = body;
+  frf_maker->content->content = calloc(strlen(body) + 1, 1);
+  memcpy(frf_maker->content->content, body, strlen(body));
   frf_maker->content->p13n_lookup = make_p13n_lookup(p13n_json);
   frf_maker_compile(frf_maker, frf_maker->content);
+
+  json_decref(root);
 
   return 0;
 }
@@ -244,7 +248,7 @@ static inline uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_ma
       if (elt->type == FRF_MAKER_CC_TYPE_STATIC) {
 	temp = htonl(elt->val.offset);
       } else {
-	temp = 0;
+	temp = htonl(0);
       }
       fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
       frf_maker->unique_cells_written += 4;
@@ -261,6 +265,7 @@ int frf_maker_finish(frf_maker_t * frf_maker)
   uint32_t header[4];
   char buf[1024];
   char * ofn = frf_maker->output_file_name;
+  int retcode;
 
   header[0] = htonl(frf_maker->num_rows);
   header[1] = htonl(16);
@@ -268,17 +273,56 @@ int frf_maker_finish(frf_maker_t * frf_maker)
   header[3] = htonl(16 + frf_maker->string_table_written - 1 + frf_maker->unique_cells_written);
   fwrite(header, 4, 4, frf_maker->header_fh);
 
-  fflush(frf_maker->string_table_fh);
-  fflush(frf_maker->vector_fh);
-  fflush(frf_maker->unique_cells_fh);
-  fflush(frf_maker->header_fh);
+  fclose(frf_maker->string_table_fh);
+  fclose(frf_maker->vector_fh);
+  fclose(frf_maker->unique_cells_fh);
+  fclose(frf_maker->header_fh);
 
   sprintf(buf, "cat %s.h %s.st %s.uc %s.v > %s", ofn, ofn, ofn, ofn, ofn);
-  system(buf);
+  if ((retcode = system(buf)) == -1) {
+    error(1, 0, "System failed with: %d", retcode);
+  }
   sprintf(buf, "rm %s.h %s.st %s.uc %s.v", ofn, ofn, ofn, ofn);
   system(buf);
 
   return 0;
+}
+
+void frf_maker_destroy_cc(frf_maker_cc_t * cc)
+{
+  frf_maker_cc_t * cur, * temp;
+
+  DL_FOREACH_SAFE(cc, cur, temp) {
+    DL_DELETE(cc, cur);
+    free(cur);
+  }
+}
+
+void frf_maker_destroy_str2ui(frf_maker_str2ui_t * str2ui)
+{
+  frf_maker_str2ui_t * entry, * temp;
+
+  HASH_ITER(hh, str2ui, entry, temp) {
+    HASH_DELETE(hh, str2ui, entry);
+    free(entry->str);
+    free(entry);
+  }
+}
+
+void frf_maker_destroy_content(frf_maker_content_t * content)
+{
+  free(content->content);
+  frf_maker_destroy_cc(content->cc);
+  frf_maker_destroy_str2ui(content->p13n_lookup);
+  free(content);
+}
+
+void frf_maker_destroy(frf_maker_t * frf_maker)
+{
+  frf_maker_destroy_content(frf_maker->content);
+  frf_maker_destroy_str2ui(frf_maker->strings_lookup);
+  frf_maker_destroy_str2ui(frf_maker->uniq_cells_lookup);
+  pcre_free(frf_maker->content_re);
 }
 
 int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths)
@@ -326,10 +370,12 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths)
     fwrite(&vector_offset, 4, 1, frf_maker->vector_fh);
 
     DL_DELETE(vector_head, vector_current);
+    free(vector_current);
   }
 
   DL_FOREACH_SAFE(cells_head, cells_current, cells_temp) {
     DL_DELETE(cells_head, cells_current);
+    free(cells_current);
   }
 
   frf_maker->num_rows++;

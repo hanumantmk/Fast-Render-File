@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <error.h>
 
-#define STRING_TABLE_LOOKUP_SIZE (1 << 20)
+#define STRING_TABLE_LOOKUP_SIZE 100000
 
 enum FRF_MAKER_CC_TYPE {
   FRF_MAKER_CC_TYPE_STATIC,
@@ -70,3 +70,4 @@ typedef struct frf_maker {
 int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * output_file_name);
 int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths);
 int frf_maker_finish(frf_maker_t * frf_maker);
+void frf_maker_destroy(frf_maker_t * frf_maker);

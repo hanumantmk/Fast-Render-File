@@ -39,7 +39,11 @@ int main (int argc, char ** argv)
     frf_maker_add(&frf_maker, p13n, lengths);
   }
 
+  free(line);
+
   frf_maker_finish(&frf_maker);
+
+  frf_maker_destroy(&frf_maker);
 
   return 0;
 }
