@@ -91,6 +91,7 @@ typedef struct frf_maker {
 } frf_maker_t;
 
 int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * output_file_name);
+frf_maker_t * frf_maker_new(char * content_file_name, char * output_file_name);
 int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths);
 int frf_maker_finish(frf_maker_t * frf_maker);
 void frf_maker_destroy(frf_maker_t * frf_maker);

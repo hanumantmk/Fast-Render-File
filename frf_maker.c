@@ -252,6 +252,16 @@ static frf_maker_cc_t * frf_maker_compile(frf_maker_t * frf_maker, frf_maker_con
   return stack;
 }
 
+frf_maker_t * frf_maker_new(char * content_file_name, char * output_file_name)
+{
+  frf_maker_t * frf_maker;
+
+  frf_maker = calloc(sizeof(frf_maker_t), 1);
+  frf_maker_init(frf_maker, content_file_name, output_file_name);
+
+  return frf_maker;
+}
+
 int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * output_file_name)
 {
   json_t * root;
@@ -466,6 +476,7 @@ void frf_maker_destroy(frf_maker_t * frf_maker)
   frf_maker_destroy_str2ui(frf_maker->p13n_lookup);
   frf_maker_destroy_str2dc(frf_maker->dc_lookup);
   pcre_free(frf_maker->content_re);
+  free(frf_maker);
 }
 
 int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths)

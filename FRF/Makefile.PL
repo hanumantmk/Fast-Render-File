@@ -5,6 +5,6 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME              => 'FRF',
     VERSION_FROM      => 'lib/FRF.pm', # finds $VERSION
-    LIBS              => '-L.. -lfrf',
+    LIBS              => '-L.. -lfrf -ljansson -lpcre',
     INC               => '-I..',
 );

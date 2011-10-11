@@ -22,26 +22,16 @@ $output_file or die "Please Enter an output_file";
 
 open my $p13n_ifd, $p13n_file or die "Terribly: $!";
 
-my $content = do $content_file;
-
-my $frf = FRF::Maker->new({
-  content   => $content,
-  file_name => $output_file,
-});
+my $frf = FRF::Maker->new($content_file, $output_file);
 
 while (my $line = <$p13n_ifd>) {
   chomp $line;
-  $frf->add([split /\t/, $line]);
+
+  my @line = split /\t/, $line;
+
+  $frf->add(\@line, [map { length($_) } @line]);
 }
 
 $frf->finish;
-
-if ($dump_on_finish) {
-  $frf = $frf->load;
-
-  do {
-    $frf->write(1);
-  } while ($frf->next);
-}
 
 exit 0;

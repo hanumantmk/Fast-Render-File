@@ -4,9 +4,7 @@
 
 int main (int argc, char ** argv)
 {
-  frf_maker_t frf_maker;
-
-  frf_maker_init(&frf_maker, argv[1], argv[2]);
+  frf_maker_t * frf_maker;
 
   char * start, * end;
   char *line = NULL;
@@ -19,6 +17,8 @@ int main (int argc, char ** argv)
   int i;
 
   FILE * fp;
+
+  frf_maker = frf_maker_new(argv[1], argv[2]);
 
   fp = fopen(argv[3], "r");
 
@@ -36,14 +36,14 @@ int main (int argc, char ** argv)
     p13n[i]    = start;
     lengths[i] = strlen(start);
 
-    frf_maker_add(&frf_maker, p13n, lengths);
+    frf_maker_add(frf_maker, p13n, lengths);
   }
 
   free(line);
 
-  frf_maker_finish(&frf_maker);
+  frf_maker_finish(frf_maker);
 
-  frf_maker_destroy(&frf_maker);
+  frf_maker_destroy(frf_maker);
 
   return 0;
 }

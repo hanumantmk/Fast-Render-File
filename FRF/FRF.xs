@@ -5,8 +5,10 @@
 #include "ppport.h"
 
 #include <frf.h>
+#include <frf_maker.h>
 
 typedef frf_t * FRF;
+typedef frf_maker_t * FRF_Maker;
 
 MODULE = FRF		PACKAGE = FRF	PREFIX = frf
 
@@ -36,9 +38,52 @@ int frf_seek(frf, offset)
     uint32_t uoffset = (uint32_t)offset;
   CODE:
     RETVAL = frf_seek(frf, uoffset);
+  OUTPUT:
+    RETVAL
 
 void
 frf_DESTROY(frf)
     FRF frf
   CODE:
     frf_destroy(frf);
+
+MODULE = FRF		PACKAGE = FRF::Maker	PREFIX = frf_maker
+
+FRF_Maker
+frf_maker_new(content_file_name, output_file_name)
+    char * content_file_name
+    char * output_file_name
+
+MODULE = FRF		PACKAGE = FRF::Maker		PREFIX = frf_maker_
+
+int
+frf_maker_add(frf_maker, p13n, lengths)
+    FRF_Maker frf_maker;
+    SV * p13n;
+    SV * lengths;
+  INIT:
+    char ** p;
+    uint32_t * l;
+    int i;
+
+    AV * av_p = (AV *)SvRV(p13n);
+    AV * av_l = (AV *)SvRV(lengths);
+
+    p = calloc(sizeof(char *), av_len(av_p));
+    l = calloc(sizeof(uint32_t), av_len(av_l));
+
+    for (i = 0; i < av_len(av_p); i++) {
+      p[i] = SvPV(*(av_fetch(av_p, i, 0)), l[i]);
+    }
+  CODE:
+    frf_maker_add(frf_maker, p, l);
+
+int
+frf_maker_finish(frf_maker);
+    FRF_Maker frf_maker;
+
+void
+frf_maker_DESTROY(frf_maker)
+    FRF_Maker frf_maker;
+  CODE:
+    frf_maker_destroy(frf_maker);
