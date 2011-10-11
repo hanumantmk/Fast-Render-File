@@ -18,10 +18,82 @@ frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
     memcpy(p13n_node->str, key, strlen(key));
     p13n_node->offset = i;
 
-    HASH_ADD_KEYPTR(hh, p13n_lookup, key, strlen(key), p13n_node);
+    HASH_ADD_KEYPTR(hh, p13n_lookup, p13n_node->str, strlen(key), p13n_node);
   }
 
   return p13n_lookup;
+}
+
+frf_maker_str2dc_t * make_dc_lookup(frf_maker_t * frf_maker, json_t * dc_json)
+{
+  frf_maker_str2ui_t      * p13n_node;
+  frf_maker_str2dc_t      * dc_node, * dc_lookup = NULL;
+  frf_maker_str2content_t * content_node;
+  frf_maker_content_t     * content_temp, * alt_content_temp;
+
+  void * iter, * alt_iter;
+
+  const char * key, * alt_key, * alt_value;
+  char * p13n_key = NULL, * default_alt = NULL;
+
+  json_t * json_alternatives;
+
+  json_error_t json_error;
+
+  iter = json_object_iter(dc_json);
+
+  while(iter) {
+    key = json_object_iter_key(iter);
+
+    if (json_unpack_ex(json_object_iter_value(iter), &json_error, 0, "{s:s, s:o, s:s}", "key", &p13n_key, "alternatives", &json_alternatives, "default", &default_alt) < 0) {
+      error(1, 0, "Couldn't unpack json: %s", json_error.text);
+    }
+
+    dc_node = calloc(sizeof(frf_maker_str2dc_t), 1);
+    dc_node->str = calloc(strlen(key) + 1, 1);
+    memcpy(dc_node->str, key, strlen(key));
+
+    HASH_FIND(hh, frf_maker->p13n_lookup, p13n_key, strlen(p13n_key), p13n_node);
+
+    if (! p13n_node) {
+      error(1, 0, "invalid p13n key %s", p13n_key);
+    }
+
+    dc_node->p13n_offset = p13n_node->offset;
+
+    content_temp = calloc(sizeof(frf_maker_content_t), 1);
+
+    dc_node->def = content_temp;
+
+    content_temp->content = calloc(strlen(default_alt) + 1, 1);
+    memcpy(content_temp->content, default_alt, strlen(default_alt));
+
+    HASH_ADD_KEYPTR(hh, dc_lookup, key, strlen(key), dc_node);
+
+    alt_iter = json_object_iter(json_alternatives);
+
+    while (alt_iter) {
+      alt_key   = json_object_iter_key(alt_iter);
+      alt_value = json_string_value(json_object_iter_value(alt_iter));
+      alt_content_temp = calloc(sizeof(frf_maker_content_t), 1);
+
+      content_node = calloc(sizeof(frf_maker_str2content_t), 1);
+      content_node->str = calloc(strlen(alt_key) + 1, 1);
+      memcpy(content_node->str, alt_key, strlen(alt_key));
+
+      content_node->content = alt_content_temp;
+      alt_content_temp->content = calloc(strlen(alt_value) + 1, 1);
+      memcpy(alt_content_temp->content, alt_value, strlen(alt_value));
+
+      HASH_ADD_KEYPTR(hh, dc_node->alternatives, content_node->str, strlen(alt_key), content_node);
+
+      alt_iter = json_object_iter_next(json_alternatives, alt_iter);
+    }
+
+    iter = json_object_iter_next(dc_json, iter);
+  }
+
+  return dc_lookup;
 }
 
 static inline uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * str, uint32_t len)
@@ -85,12 +157,28 @@ static inline frf_maker_cc_t * frf_maker_make_static_cell(frf_maker_t * frf_make
   return cc;
 }
 
-static inline frf_maker_cc_t * frf_maker_make_dynamic_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
+static inline frf_maker_cc_t * frf_maker_make_dc_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
+{
+  frf_maker_cc_t * cc = NULL;
+  frf_maker_str2dc_t * temp = NULL;
+
+  HASH_FIND(hh, frf_maker->dc_lookup, str, len, temp);
+
+  if (temp) {
+    cc = calloc(sizeof(frf_maker_cc_t), 1);
+    cc->type = FRF_MAKER_CC_TYPE_DC;
+    cc->val.dc = temp;
+  }
+
+  return cc;
+}
+
+static inline frf_maker_cc_t * frf_maker_make_p13n_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
   frf_maker_cc_t * cc = NULL;
   frf_maker_str2ui_t * temp;
 
-  HASH_FIND(hh, frf_maker->content->p13n_lookup, str, len, temp);
+  HASH_FIND(hh, frf_maker->p13n_lookup, str, len, temp);
 
   if (temp) {
     cc = calloc(sizeof(frf_maker_cc_t), 1);
@@ -101,7 +189,7 @@ static inline frf_maker_cc_t * frf_maker_make_dynamic_cell(frf_maker_t * frf_mak
   return cc;
 }
 
-void frf_maker_compile(frf_maker_t * frf_maker, frf_maker_content_t * content)
+void frf_maker_precompile(frf_maker_t * frf_maker, frf_maker_content_t * content)
 {
   char * c;
 
@@ -111,34 +199,63 @@ void frf_maker_compile(frf_maker_t * frf_maker, frf_maker_content_t * content)
 
   frf_maker_cc_t * cc_head = NULL, * cc_temp;
 
-  assert(content->is_compiled == 0);
+  if (! content->is_compiled) {
+    c = content->content;
 
-  c = content->content;
+    while ((rc = pcre_exec(frf_maker->content_re, NULL, c, strlen(c), read, 0, ovector, 9)) > 0) {
+      if ((cc_temp = frf_maker_make_static_cell(frf_maker, c + ovector[2], ovector[3] - ovector[2]))) {
+	DL_APPEND(cc_head, cc_temp);
+      }
 
-  while ((rc = pcre_exec(frf_maker->content_re, NULL, c, strlen(c), read, 0, ovector, sizeof(ovector))) > 0) {
-    if ((cc_temp = frf_maker_make_static_cell(frf_maker, c + ovector[2], ovector[3] - ovector[2]))) {
+      if ((cc_temp = frf_maker_make_p13n_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
+	DL_APPEND(cc_head, cc_temp);
+      }
+
+      if ((cc_temp = frf_maker_make_dc_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
+	DL_APPEND(cc_head, cc_temp);
+      }
+
+      c += ovector[1];
+    }
+
+    if ((cc_temp = frf_maker_make_static_cell(frf_maker, c, strlen(c)))) {
       DL_APPEND(cc_head, cc_temp);
     }
 
-    if ((cc_temp = frf_maker_make_dynamic_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
-      DL_APPEND(cc_head, cc_temp);
+    content->cc = cc_head;
+    content->is_compiled = 1;
+  }
+}
+
+frf_maker_cc_t * frf_maker_compile(frf_maker_t * frf_maker, frf_maker_content_t * content)
+{
+  frf_maker_cc_t * stack = NULL, * stack_elt, * stack_temp;
+  frf_maker_cc_t * cc_temp;
+
+  if (! content->is_compiled) {
+    frf_maker_precompile(frf_maker, content);
+  }
+
+  DL_FOREACH(content->cc, cc_temp) {
+    stack_temp = calloc(sizeof(frf_maker_cc_t), 1);
+    stack_temp->type = cc_temp->type;
+    stack_temp->val = cc_temp->val;
+
+    if (! stack) {
+      stack = stack_elt = stack_temp;
+    } else {
+      stack_elt->next = stack_temp;
+      stack_elt = stack_temp;
     }
-
-    c += ovector[1];
   }
 
-  if ((cc_temp = frf_maker_make_static_cell(frf_maker, c, strlen(c)))) {
-    DL_APPEND(cc_head, cc_temp);
-  }
-
-  content->cc = cc_head;
-  content->is_compiled = 1;
+  return stack;
 }
 
 int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * output_file_name)
 {
   json_t * root;
-  json_t * p13n_json = NULL;
+  json_t * p13n_json = NULL, * dc_json = NULL;
   json_error_t json_error;
   char * body = NULL;
   char buf[1024];
@@ -153,7 +270,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   }
 
   frf_maker->content_file_name = content_file_name;
-  if (json_unpack_ex(root, &json_error, 0, "{s:s, s:o}", "body", &body, "p13n", &p13n_json) < 0) {
+  if (json_unpack_ex(root, &json_error, 0, "{s:s, s:o, s:o}", "body", &body, "p13n", &p13n_json, "dc", &dc_json) < 0) {
     error(1, 0, "Couldn't unpack json: %s", json_error.text);
   }
 
@@ -161,7 +278,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   assert(content_re);
   frf_maker->content_re = content_re;
 
-  frf_maker->content = malloc(sizeof(frf_maker_content_t));
+  frf_maker->content = calloc(sizeof(frf_maker_content_t), 1);
   frf_maker->num_rows = 0;
 
   frf_maker->output_file_name = output_file_name;
@@ -183,11 +300,11 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->strings_lookup = NULL;
   frf_maker->uniq_cells_lookup = NULL;
 
-  frf_maker->content->is_compiled = 0;
   frf_maker->content->content = calloc(strlen(body) + 1, 1);
   memcpy(frf_maker->content->content, body, strlen(body));
-  frf_maker->content->p13n_lookup = make_p13n_lookup(p13n_json);
-  frf_maker_compile(frf_maker, frf_maker->content);
+  frf_maker->p13n_lookup = make_p13n_lookup(p13n_json);
+  frf_maker->dc_lookup = make_dc_lookup(frf_maker, dc_json);
+  frf_maker_precompile(frf_maker, frf_maker->content);
 
   json_decref(root);
 
@@ -298,6 +415,38 @@ void frf_maker_destroy_cc(frf_maker_cc_t * cc)
   }
 }
 
+void frf_maker_destroy_content(frf_maker_content_t * content)
+{
+  free(content->content);
+  frf_maker_destroy_cc(content->cc);
+  free(content);
+}
+
+void frf_maker_destroy_str2content(frf_maker_str2content_t * str2content)
+{
+  frf_maker_str2content_t * entry, * temp;
+
+  HASH_ITER(hh, str2content, entry, temp) {
+    HASH_DELETE(hh, str2content, entry);
+    free(entry->str);
+    frf_maker_destroy_content(entry->content);
+    free(entry);
+  }
+}
+
+void frf_maker_destroy_str2dc(frf_maker_str2dc_t * str2dc)
+{
+  frf_maker_str2dc_t * entry, * temp;
+
+  HASH_ITER(hh, str2dc, entry, temp) {
+    HASH_DELETE(hh, str2dc, entry);
+    frf_maker_destroy_str2content(entry->alternatives);
+    frf_maker_destroy_content(entry->def);
+    free(entry->str);
+    free(entry);
+  }
+}
+
 void frf_maker_destroy_str2ui(frf_maker_str2ui_t * str2ui)
 {
   frf_maker_str2ui_t * entry, * temp;
@@ -309,33 +458,32 @@ void frf_maker_destroy_str2ui(frf_maker_str2ui_t * str2ui)
   }
 }
 
-void frf_maker_destroy_content(frf_maker_content_t * content)
-{
-  free(content->content);
-  frf_maker_destroy_cc(content->cc);
-  frf_maker_destroy_str2ui(content->p13n_lookup);
-  free(content);
-}
-
 void frf_maker_destroy(frf_maker_t * frf_maker)
 {
   frf_maker_destroy_content(frf_maker->content);
   frf_maker_destroy_str2ui(frf_maker->strings_lookup);
   frf_maker_destroy_str2ui(frf_maker->uniq_cells_lookup);
+  frf_maker_destroy_str2ui(frf_maker->p13n_lookup);
+  frf_maker_destroy_str2dc(frf_maker->dc_lookup);
   pcre_free(frf_maker->content_re);
 }
 
 int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths)
 {
-  frf_maker_cc_t * stack = frf_maker->content->cc;
-  frf_maker_cc_t * stack_elt;
+  frf_maker_str2content_t  * dc_node;
+  frf_maker_content_t * dc_content;
+
   frf_maker_cc_t * cells_head = NULL, * cells_temp, * cells_current;
   frf_maker_vector_t * vector_head = NULL, * vector_temp, * vector_current;
   uint32_t uniq_vector_offset, vector_offset;
 
   int cells_cnt = 0, vector_cnt = 0;
 
-  DL_FOREACH(stack, stack_elt) {
+  frf_maker_cc_t * stack_elt = frf_maker_compile(frf_maker, frf_maker->content);
+  frf_maker_cc_t * stack_temp;
+  frf_maker_cc_t * dc_elt, * dc_tail;
+
+  while(stack_elt) {
     switch (stack_elt->type) {
       case FRF_MAKER_CC_TYPE_P13N:
         vector_cnt++;
@@ -353,8 +501,30 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths)
 	cells_temp->val.offset = stack_elt->val.offset;
 
 	DL_APPEND(cells_head, cells_temp);
+	stack_temp = stack_elt;
+	stack_elt = stack_elt->next;
+	free(stack_temp);
 
         break;
+      case FRF_MAKER_CC_TYPE_DC:
+        HASH_FIND(hh, stack_elt->val.dc->alternatives, p13n[stack_elt->val.dc->p13n_offset], lengths[stack_elt->val.dc->p13n_offset], dc_node);
+
+	if (dc_node) {
+	  dc_content = dc_node->content;
+	} else {
+	  dc_content = stack_elt->val.dc->def;
+	}
+
+	dc_tail = dc_elt = frf_maker_compile(frf_maker, dc_content);
+
+	while (dc_tail->next) {
+	  dc_tail = dc_tail->next;
+	}
+	dc_tail->next = stack_elt->next;
+	free(stack_elt);
+	stack_elt = dc_elt;
+
+	break;
       default:
         perror("Shouldn't be here");
 	exit(1);
