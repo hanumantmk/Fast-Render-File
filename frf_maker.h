@@ -6,8 +6,11 @@
 #include <pcre.h>
 #include "uthash.h"
 #include "utlist.h"
+#include "utstring.h"
 #include <stdio.h>
 #include <error.h>
+
+#define STRING_TABLE_LOOKUP_SIZE (1 << 20)
 
 enum FRF_MAKER_CC_TYPE {
   FRF_MAKER_CC_TYPE_STATIC,

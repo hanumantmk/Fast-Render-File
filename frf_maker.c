@@ -25,7 +25,7 @@ frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
 
 static inline uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
-  frf_maker_str2ui_t * temp;
+  frf_maker_str2ui_t * temp, *entry;
   char short_len;
   char * buf;
   uint32_t long_len;
@@ -34,6 +34,8 @@ static inline uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, ch
   HASH_FIND(hh, frf_maker->strings_lookup, str, len, temp);
 
   if (temp) {
+    HASH_DELETE(hh, frf_maker->strings_lookup, temp);
+    HASH_ADD_KEYPTR(hh, frf_maker->strings_lookup, temp->str, len, temp);
     rval = temp->offset;
   } else {
     temp = malloc(sizeof(frf_maker_str2ui_t));
@@ -42,6 +44,15 @@ static inline uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, ch
     temp->str = buf;
     temp->offset = frf_maker->string_table_written;
     HASH_ADD_KEYPTR(hh, frf_maker->strings_lookup, buf, len, temp);
+
+    if (HASH_COUNT(frf_maker->strings_lookup) >= STRING_TABLE_LOOKUP_SIZE) {
+      HASH_ITER(hh, frf_maker->strings_lookup, entry, temp) {
+	HASH_DELETE(hh, frf_maker->strings_lookup, entry);
+	free(entry->str);
+	free(entry);
+	break;
+      }
+    }
 
     rval = frf_maker->string_table_written;
     if (len < 1 << 7) {
@@ -166,6 +177,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->header_fh = fopen(buf, "w");
 
   frf_maker->strings_lookup = NULL;
+  frf_maker->uniq_cells_lookup = NULL;
 
   frf_maker->content->is_compiled = 0;
   frf_maker->content->content = body;
@@ -180,27 +192,63 @@ static inline uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_ma
 {
   uint32_t rval, temp;
 
+  char * buf;
+
+  UT_string * s;
+
   frf_maker_cc_t * elt;
 
-  rval = frf_maker->unique_cells_written;
+  frf_maker_str2ui_t * uc_temp;
 
-  temp = htonl(cells_cnt);
-  fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
-  frf_maker->unique_cells_written += 4;
-
-  temp = htonl(vector_cnt);
-  fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
-  frf_maker->unique_cells_written += 4;
+  utstring_new(s);
 
   DL_FOREACH(cells, elt) {
-    if (elt->type == FRF_MAKER_CC_TYPE_STATIC) {
-      temp = htonl(elt->val.offset);
-    } else {
-      temp = 0;
+    switch(elt->type) {
+      case FRF_MAKER_CC_TYPE_STATIC:
+	utstring_printf(s, "%d.", elt->val.offset);
+	break;
+      default:
+        utstring_printf(s, ".");
     }
+  }
+
+  HASH_FIND(hh, frf_maker->uniq_cells_lookup, utstring_body(s), utstring_len(s), uc_temp);
+
+  if (uc_temp) {
+    rval = uc_temp->offset;
+  } else {
+    rval = frf_maker->unique_cells_written;
+
+    uc_temp = malloc(sizeof(frf_maker_str2ui_t));
+
+    buf = malloc(utstring_len(s));
+    memcpy(buf, utstring_body(s), utstring_len(s));
+
+    uc_temp->str = buf;
+    uc_temp->offset = rval;
+
+    HASH_ADD_KEYPTR(hh, frf_maker->uniq_cells_lookup, buf, utstring_len(s), uc_temp);
+
+    temp = htonl(cells_cnt);
     fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
     frf_maker->unique_cells_written += 4;
+
+    temp = htonl(vector_cnt);
+    fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
+    frf_maker->unique_cells_written += 4;
+
+    DL_FOREACH(cells, elt) {
+      if (elt->type == FRF_MAKER_CC_TYPE_STATIC) {
+	temp = htonl(elt->val.offset);
+      } else {
+	temp = 0;
+      }
+      fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
+      frf_maker->unique_cells_written += 4;
+    }
   }
+
+  utstring_free(s);
 
   return rval;
 }
