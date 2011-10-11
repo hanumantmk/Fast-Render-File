@@ -1,8 +1,10 @@
 TARGETS = render stat make_frf
 LIBS = frf.o frf_maker.o
 LIBS_HEADERS = frf.h frf_maker.h
-#CFLAGS= -O3
-CFLAGS += -Wall -ggdb -ljansson -lpcre
+CC = clang
+LFLAGS = -ljansson -lpcre -lprofiler
+CFLAGS += -O3
+# CFLAGS += -O0 -Wall -ggdb
 
 default: $(TARGETS) libfrf.a
 	cd FRF; perl Makefile.PL; make
@@ -11,7 +13,7 @@ default: $(TARGETS) libfrf.a
 	$(CC) $(CFLAGS) -c $<
 
 $(TARGETS): % : %.o libfrf.a
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $(LFLAGS) $^ -o $@
 
 libfrf.a: $(LIBS)
 	ar rcs $@ $^

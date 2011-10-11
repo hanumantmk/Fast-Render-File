@@ -2,7 +2,7 @@
 #include <assert.h>
 // #define NDEBUG
 
-frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
+static frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
 {
   frf_maker_str2ui_t * p13n_lookup, * p13n_node;
   p13n_lookup = NULL;
@@ -24,7 +24,7 @@ frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
   return p13n_lookup;
 }
 
-frf_maker_str2dc_t * make_dc_lookup(frf_maker_t * frf_maker, json_t * dc_json)
+static frf_maker_str2dc_t * make_dc_lookup(frf_maker_t * frf_maker, json_t * dc_json)
 {
   frf_maker_str2ui_t      * p13n_node;
   frf_maker_str2dc_t      * dc_node, * dc_lookup = NULL;
@@ -96,7 +96,7 @@ frf_maker_str2dc_t * make_dc_lookup(frf_maker_t * frf_maker, json_t * dc_json)
   return dc_lookup;
 }
 
-static inline uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * str, uint32_t len)
+static uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
   frf_maker_str2ui_t * temp, *entry;
   char short_len;
@@ -144,7 +144,7 @@ static inline uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, ch
   return rval;
 }
 
-static inline frf_maker_cc_t * frf_maker_make_static_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
+static frf_maker_cc_t * frf_maker_make_static_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
   frf_maker_cc_t * cc = NULL;
 
@@ -157,7 +157,7 @@ static inline frf_maker_cc_t * frf_maker_make_static_cell(frf_maker_t * frf_make
   return cc;
 }
 
-static inline frf_maker_cc_t * frf_maker_make_dc_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
+static frf_maker_cc_t * frf_maker_make_dc_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
   frf_maker_cc_t * cc = NULL;
   frf_maker_str2dc_t * temp = NULL;
@@ -173,7 +173,7 @@ static inline frf_maker_cc_t * frf_maker_make_dc_cell(frf_maker_t * frf_maker, c
   return cc;
 }
 
-static inline frf_maker_cc_t * frf_maker_make_p13n_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
+static frf_maker_cc_t * frf_maker_make_p13n_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
   frf_maker_cc_t * cc = NULL;
   frf_maker_str2ui_t * temp;
@@ -189,7 +189,7 @@ static inline frf_maker_cc_t * frf_maker_make_p13n_cell(frf_maker_t * frf_maker,
   return cc;
 }
 
-void frf_maker_precompile(frf_maker_t * frf_maker, frf_maker_content_t * content)
+static void frf_maker_precompile(frf_maker_t * frf_maker, frf_maker_content_t * content)
 {
   char * c;
 
@@ -227,7 +227,7 @@ void frf_maker_precompile(frf_maker_t * frf_maker, frf_maker_content_t * content
   }
 }
 
-frf_maker_cc_t * frf_maker_compile(frf_maker_t * frf_maker, frf_maker_content_t * content)
+static frf_maker_cc_t * frf_maker_compile(frf_maker_t * frf_maker, frf_maker_content_t * content)
 {
   frf_maker_cc_t * stack = NULL, * stack_elt, * stack_temp;
   frf_maker_cc_t * cc_temp;
@@ -312,7 +312,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
 }
 
 
-static inline uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_t * cells, int cells_cnt, frf_maker_vector_t * vector, int vector_cnt)
+static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_t * cells, int cells_cnt, frf_maker_vector_t * vector, int vector_cnt)
 {
   uint32_t rval, temp;
 
@@ -405,7 +405,7 @@ int frf_maker_finish(frf_maker_t * frf_maker)
   return 0;
 }
 
-void frf_maker_destroy_cc(frf_maker_cc_t * cc)
+static void frf_maker_destroy_cc(frf_maker_cc_t * cc)
 {
   frf_maker_cc_t * cur, * temp;
 
@@ -415,14 +415,14 @@ void frf_maker_destroy_cc(frf_maker_cc_t * cc)
   }
 }
 
-void frf_maker_destroy_content(frf_maker_content_t * content)
+static void frf_maker_destroy_content(frf_maker_content_t * content)
 {
   free(content->content);
   frf_maker_destroy_cc(content->cc);
   free(content);
 }
 
-void frf_maker_destroy_str2content(frf_maker_str2content_t * str2content)
+static void frf_maker_destroy_str2content(frf_maker_str2content_t * str2content)
 {
   frf_maker_str2content_t * entry, * temp;
 
@@ -434,7 +434,7 @@ void frf_maker_destroy_str2content(frf_maker_str2content_t * str2content)
   }
 }
 
-void frf_maker_destroy_str2dc(frf_maker_str2dc_t * str2dc)
+static void frf_maker_destroy_str2dc(frf_maker_str2dc_t * str2dc)
 {
   frf_maker_str2dc_t * entry, * temp;
 
@@ -447,7 +447,7 @@ void frf_maker_destroy_str2dc(frf_maker_str2dc_t * str2dc)
   }
 }
 
-void frf_maker_destroy_str2ui(frf_maker_str2ui_t * str2ui)
+static void frf_maker_destroy_str2ui(frf_maker_str2ui_t * str2ui)
 {
   frf_maker_str2ui_t * entry, * temp;
 
