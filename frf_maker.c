@@ -114,12 +114,7 @@ void frf_maker_compile(frf_maker_t * frf_maker, frf_maker_content_t * content)
 
   c = content->content;
 
-  const char * content_re_errptr = NULL;
-  int content_re_err_off = 0;
-  pcre * content_re = pcre_compile("(.*?)%% *([^% ]+) *%%", PCRE_DOTALL, &content_re_errptr, &content_re_err_off, NULL);
-  assert(content_re);
-
-  while ((rc = pcre_exec(content_re, NULL, c, strlen(c), read, 0, ovector, sizeof(ovector))) > 0) {
+  while ((rc = pcre_exec(frf_maker->content_re, NULL, c, strlen(c), read, 0, ovector, sizeof(ovector))) > 0) {
     if ((cc_temp = frf_maker_make_static_cell(frf_maker, c + ovector[2], ovector[3] - ovector[2]))) {
       DL_APPEND(cc_head, cc_temp);
     }
@@ -147,6 +142,10 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   char * body = NULL;
   char buf[1024];
 
+  pcre * content_re;
+  const char * content_re_errptr = NULL;
+  int content_re_err_off = 0;
+
   root = json_load_file(content_file_name, 0, &json_error);
   if (! root) {
     error(1, 0, "Couldn't load json: %s", json_error.text);
@@ -156,6 +155,10 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   if (json_unpack_ex(root, &json_error, 0, "{s:s, s:o}", "body", &body, "p13n", &p13n_json) < 0) {
     error(1, 0, "Couldn't unpack json: %s", json_error.text);
   }
+
+  content_re = pcre_compile("(.*?)%% *([^% ]+) *%%", PCRE_DOTALL, &content_re_errptr, &content_re_err_off, NULL);
+  assert(content_re);
+  frf_maker->content_re = content_re;
 
   frf_maker->content = malloc(sizeof(frf_maker_content_t));
   frf_maker->num_rows = 0;

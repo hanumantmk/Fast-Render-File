@@ -55,6 +55,8 @@ typedef struct frf_maker {
   frf_maker_str2ui_t * strings_lookup;
   frf_maker_str2ui_t * uniq_cells_lookup;
 
+  pcre * content_re;
+
   FILE * string_table_fh;
   uint32_t string_table_written;
   FILE * unique_cells_fh;
