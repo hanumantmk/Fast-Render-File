@@ -69,14 +69,18 @@ frf_maker_add(frf_maker, p13n, lengths)
     AV * av_p = (AV *)SvRV(p13n);
     AV * av_l = (AV *)SvRV(lengths);
 
-    p = calloc(sizeof(char *), av_len(av_p));
-    l = calloc(sizeof(uint32_t), av_len(av_l));
+    p = calloc(sizeof(char *), av_len(av_p) + 1);
+    l = calloc(sizeof(uint32_t), av_len(av_p) + 1);
 
-    for (i = 0; i < av_len(av_p); i++) {
+    for (i = 0; i < av_len(av_p) + 1; i++) {
       p[i] = SvPV(*(av_fetch(av_p, i, 0)), l[i]);
     }
   CODE:
-    frf_maker_add(frf_maker, p, l);
+    RETVAL = frf_maker_add(frf_maker, p, l);
+    free(p);
+    free(l);
+  OUTPUT:
+    RETVAL
 
 int
 frf_maker_finish(frf_maker);
