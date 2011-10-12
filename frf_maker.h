@@ -1,3 +1,5 @@
+#ifndef FRF_MAKER_DEF
+#define FRF_MAKER_DEF
 #include <string.h>
 #include <jansson.h>
 #include <arpa/inet.h>
@@ -10,12 +12,15 @@
 #include <stdio.h>
 #include <error.h>
 
+#include "frf_transform.h"
+
 #define STRING_TABLE_LOOKUP_SIZE 100000
 
 enum FRF_MAKER_CC_TYPE {
   FRF_MAKER_CC_TYPE_STATIC,
   FRF_MAKER_CC_TYPE_P13N,
-  FRF_MAKER_CC_TYPE_DC
+  FRF_MAKER_CC_TYPE_DC,
+  FRF_MAKER_CC_TYPE_DT
 };
 
 typedef struct frf_maker_str2ui {
@@ -38,6 +43,7 @@ typedef struct frf_maker_cc {
   union {
     uint32_t p13n;
     uint32_t offset;
+    struct frf_transform_exp * exp;
     struct frf_maker_str2dc * dc;
   } val;
 
@@ -80,6 +86,9 @@ typedef struct frf_maker {
 
   pcre * content_re;
 
+  frf_transform_malloc_context_t * malloc_context;
+  void * sym_handle;
+
   FILE * string_table_fh;
   uint32_t string_table_written;
   FILE * unique_cells_fh;
@@ -95,3 +104,4 @@ frf_maker_t * frf_maker_new(char * content_file_name, char * output_file_name);
 int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths);
 int frf_maker_finish(frf_maker_t * frf_maker);
 void frf_maker_destroy(frf_maker_t * frf_maker);
+#endif

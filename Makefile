@@ -1,11 +1,11 @@
 TARGETS = render stat make_frf
-LIBS = frf.o frf_maker.o
-LIBS_HEADERS = frf.h frf_maker.h
-LFLAGS = -ljansson -lpcre -lprofiler
-CFLAGS += -O3
-#CFLAGS += -O0 -Wall -ggdb
+LIBS = frf.o frf_maker.o frf_transform.o frf_transform_malloc.o frf_transform.tab.o lex.yy.o
+LIBS_HEADERS = frf.h frf_maker.h frf_transform_malloc.h frf_transform.h
+LFLAGS = -ljansson -lpcre -lprofiler -ldl
+#CFLAGS += -O3
+CFLAGS += -O0 -Wall -ggdb
 
-default: $(TARGETS) libfrf.a
+default: $(TARGETS) frf_transform_base.so libfrf.a
 	cd FRF; perl Makefile.PL; make
 
 %.o: %.c Makefile $(LIBS_HEADERS)
@@ -23,11 +23,20 @@ test.frf: data/content.json data/p13n.txt make_frf
 valgrind: test.frf make_frf
 	valgrind --leak-check=yes ./make_frf data/content.json test.frf data/p13n.txt
 
-test: render stat test.frf
+test: frf_transform_base.so render stat test.frf
 	time ./render test.frf > /dev/null
 	./render test.frf seek `./render test.frf get_offset 10` | grep -c oxto0@0x2fp.net
 	./stat test.frf
 
 clean:
-	rm -f test.frf $(TARGETS) *.o libfrf.a
+	rm -f test.frf $(TARGETS) *.so *.o libfrf.a *.tab.c *.tab.h lex.yy.c
 	cd FRF; make clean; rm -f Makefile.old
+
+frf_transform.tab.c frf_transform.tab.h: frf_transform.y frf_transform.h
+	bison -d frf_transform.y
+
+lex.yy.c: frf_transform.l frf_transform.tab.h frf_transform.h
+	flex frf_transform.l
+
+frf_transform_base.so: frf_transform_base.o frf_transform_malloc.o
+	$(CC) $(CFLAGS) -shared frf_transform_malloc.o frf_transform_base.c -o frf_transform_base.so

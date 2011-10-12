@@ -1,4 +1,5 @@
 #include "frf_maker.h"
+#include <dlfcn.h>
 #include <assert.h>
 // #define NDEBUG
 
@@ -157,6 +158,24 @@ static frf_maker_cc_t * frf_maker_make_static_cell(frf_maker_t * frf_maker, char
   return cc;
 }
 
+static frf_maker_cc_t * frf_maker_make_dt_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
+{
+  frf_maker_cc_t * cc = NULL;
+  frf_transform_exp_t * t = NULL;
+
+  if (memchr(str, '(', len)) {
+    t = frf_transform_compile(frf_maker, frf_maker, str, len);
+  }
+
+  if (t) {
+    cc = calloc(sizeof(frf_maker_cc_t), 1);
+    cc->type = FRF_MAKER_CC_TYPE_DT;
+    cc->val.exp = t;
+  }
+
+  return cc;
+}
+
 static frf_maker_cc_t * frf_maker_make_dc_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
   frf_maker_cc_t * cc = NULL;
@@ -209,9 +228,9 @@ static void frf_maker_precompile(frf_maker_t * frf_maker, frf_maker_content_t * 
 
       if ((cc_temp = frf_maker_make_p13n_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
 	DL_APPEND(cc_head, cc_temp);
-      }
-
-      if ((cc_temp = frf_maker_make_dc_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
+      } else if ((cc_temp = frf_maker_make_dc_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
+	DL_APPEND(cc_head, cc_temp);
+      } else  if ((cc_temp = frf_maker_make_dt_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
 	DL_APPEND(cc_head, cc_temp);
       }
 
@@ -268,6 +287,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   json_t * p13n_json = NULL, * dc_json = NULL;
   json_error_t json_error;
   char * body = NULL;
+  char * dt_file = NULL;
   char buf[1024];
 
   pcre * content_re;
@@ -280,13 +300,15 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   }
 
   frf_maker->content_file_name = content_file_name;
-  if (json_unpack_ex(root, &json_error, 0, "{s:s, s:o, s:o}", "body", &body, "p13n", &p13n_json, "dc", &dc_json) < 0) {
+  if (json_unpack_ex(root, &json_error, 0, "{s:s, s:o, s:o, s:s}", "body", &body, "p13n", &p13n_json, "dc", &dc_json, "dt", &dt_file) < 0) {
     error(1, 0, "Couldn't unpack json: %s", json_error.text);
   }
 
-  content_re = pcre_compile("(.*?)%% *([^% ]+) *%%", PCRE_DOTALL, &content_re_errptr, &content_re_err_off, NULL);
+  content_re = pcre_compile("(.*?)%% *([^%]+?) *%%", PCRE_DOTALL, &content_re_errptr, &content_re_err_off, NULL);
   assert(content_re);
   frf_maker->content_re = content_re;
+
+  frf_maker->sym_handle = dlopen(dt_file, RTLD_NOW);
 
   frf_maker->content = calloc(sizeof(frf_maker_content_t), 1);
   frf_maker->num_rows = 0;
@@ -315,6 +337,8 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->p13n_lookup = make_p13n_lookup(p13n_json);
   frf_maker->dc_lookup = make_dc_lookup(frf_maker, dc_json);
   frf_maker_precompile(frf_maker, frf_maker->content);
+
+  frf_maker->malloc_context = frf_transform_malloc_context_new();
 
   json_decref(root);
 
@@ -490,6 +514,8 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths)
 
   int cells_cnt = 0, vector_cnt = 0;
 
+  char * dt_result;
+
   frf_maker_cc_t * stack_elt = frf_maker_compile(frf_maker, frf_maker->content);
   frf_maker_cc_t * stack_temp;
   frf_maker_cc_t * dc_elt, * dc_tail;
@@ -503,9 +529,19 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths)
         vector_temp->offset = frf_maker_add_to_string_table(frf_maker, p13n[stack_elt->val.p13n], lengths[stack_elt->val.p13n]);
 
 	DL_APPEND(vector_head, vector_temp);
+	goto ALL_ADD;
+      case FRF_MAKER_CC_TYPE_DT:
+        vector_cnt++;
+        vector_temp = calloc(sizeof(frf_maker_vector_t), 1);
 
-	// deliberate fallthrough
-      case FRF_MAKER_CC_TYPE_STATIC:
+	dt_result = frf_transform_exec(&(frf_maker->malloc_context), stack_elt->val.exp, p13n);
+	
+        vector_temp->offset = frf_maker_add_to_string_table(frf_maker, dt_result, strlen(dt_result));
+	free(dt_result);
+
+	DL_APPEND(vector_head, vector_temp);
+	goto ALL_ADD;
+ALL_ADD: case FRF_MAKER_CC_TYPE_STATIC:
         cells_cnt++;
 	cells_temp = calloc(sizeof(frf_maker_cc_t), 1);
 	cells_temp->type = stack_elt->type;
