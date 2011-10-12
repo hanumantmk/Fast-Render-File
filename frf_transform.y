@@ -172,7 +172,7 @@ char * frf_transform_exec(frf_transform_malloc_context_t ** c, frf_transform_exp
   return strdup(frf_transform_exec_expression(*c, e, p13n));
 }
 
-frf_transform_exp_t * frf_transform_compile(frf_maker_t * frf_maker, void * sym, char * str, uint32_t len)
+frf_transform_exp_t * frf_transform_compile(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
   int bs;
 

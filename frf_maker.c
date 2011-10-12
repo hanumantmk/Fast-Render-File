@@ -164,7 +164,7 @@ static frf_maker_cc_t * frf_maker_make_dt_cell(frf_maker_t * frf_maker, char * s
   frf_transform_exp_t * t = NULL;
 
   if (memchr(str, '(', len)) {
-    t = frf_transform_compile(frf_maker, frf_maker, str, len);
+    t = frf_transform_compile(frf_maker, str, len);
   }
 
   if (t) {

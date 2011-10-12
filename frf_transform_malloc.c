@@ -18,6 +18,16 @@ frf_transform_malloc_context_t * frf_transform_malloc_context_new()
   return c;
 }
 
+char * frf_transform_strdup(frf_transform_malloc_context_t * c, char * str)
+{
+  int size = strlen(str);
+
+  char * out = frf_transform_malloc(c, size + 1);
+  out[size] = '\0';
+
+  return out;
+}
+
 void * frf_transform_malloc(frf_transform_malloc_context_t * c, size_t size)
 {
   void * rval;

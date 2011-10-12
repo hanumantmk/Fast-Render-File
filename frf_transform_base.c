@@ -25,7 +25,7 @@ char * FRF_TRANSFORM_trunc(frf_transform_malloc_context_t * c, int argc, char **
 char * FRF_TRANSFORM_add(frf_transform_malloc_context_t * c, int argc, char ** argv)
 {
   int i, acc = 0;
-  char * buf = frf_transform_malloc(c, 20);
+  char buf[100];
 
   for (i = 0; i < argc; i++) {
     acc += atoi(argv[i]);
@@ -33,5 +33,5 @@ char * FRF_TRANSFORM_add(frf_transform_malloc_context_t * c, int argc, char ** a
 
   sprintf(buf, "%d", acc);
 
-  return buf;
+  return frf_transform_strdup(c, buf);
 }
