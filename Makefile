@@ -2,7 +2,7 @@ TARGETS = render stat make_frf
 LIBS = frf.o frf_maker.o frf_transform.o frf_malloc.o frf_transform.tab.o lex.yy.o
 LIBS_HEADERS = frf.h frf_maker.h frf_malloc.h frf_transform.h
 LFLAGS = -ljansson -lpcre -ldl
-#CFLAGS += -O3
+#CFLAGS += -O3 -lprofiler
 CFLAGS += -O0 -Wall -ggdb
 
 default: $(TARGETS) frf_transform_base.so libfrf.a

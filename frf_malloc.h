@@ -5,17 +5,18 @@
 #include <error.h>
 #include "utlist.h"
 
-#ifndef FRF_TRANSFORM_MALLOC_BUF_SIZE
-#define FRF_TRANSFORM_MALLOC_BUF_SIZE 2
+#ifndef FRF_MALLOC
+#define FRF_MALLOC
 
 typedef struct frf_malloc_context {
   char * buf;
   char * buf_ptr;
   size_t size;
+  size_t used;
   struct frf_malloc_context * next, * prev;
 } frf_malloc_context_t;
 
-frf_malloc_context_t * frf_malloc_context_new();
+frf_malloc_context_t * frf_malloc_context_new(size_t size);
 void frf_malloc_context_destroy(frf_malloc_context_t * c);
 frf_malloc_context_t * frf_malloc_context_reset(frf_malloc_context_t * c);
 

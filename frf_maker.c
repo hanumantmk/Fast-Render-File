@@ -3,6 +3,9 @@
 #include <assert.h>
 // #define NDEBUG
 
+#define FRF_MAKER_MAIN_BUFFER_SIZE 1024
+#define FRF_MAKER_STR_BUFFER_SIZE  10000000
+
 static frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
 {
   frf_maker_str2ui_t * p13n_lookup, * p13n_node;
@@ -92,34 +95,33 @@ static frf_maker_str2dc_t * make_dc_lookup(frf_maker_t * frf_maker, json_t * dc_
   return dc_lookup;
 }
 
+#undef uthash_malloc
+#undef uthash_free
+#define uthash_malloc(sz) frf_malloc(frf_maker->str_malloc_context, sz)
+#define uthash_free(ptr, sz) 0
+
 static uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
-  frf_maker_str2ui_t * temp, *entry;
+  frf_maker_str2ui_t * temp;
   char short_len;
   char * buf;
   uint32_t long_len;
   uint32_t rval;
 
+  if (frf_maker->str_malloc_context->used > frf_maker->str_malloc_context_size) {
+    frf_maker->str_malloc_context = frf_malloc_context_reset(frf_maker->str_malloc_context);
+    frf_maker->strings_lookup = NULL;
+  }
+
   HASH_FIND(hh, frf_maker->strings_lookup, str, len, temp);
 
   if (temp) {
-    HASH_DELETE(hh, frf_maker->strings_lookup, temp);
-    HASH_ADD_KEYPTR(hh, frf_maker->strings_lookup, temp->str, len, temp);
     rval = temp->offset;
   } else {
-    temp = malloc(sizeof(frf_maker_str2ui_t));
-    temp->str = buf = strndup(str, len);
+    temp = frf_malloc(frf_maker->str_malloc_context, sizeof(frf_maker_str2ui_t));
+    temp->str = buf = frf_strndup(frf_maker->str_malloc_context, str, len);
     temp->offset = frf_maker->string_table_written;
     HASH_ADD_KEYPTR(hh, frf_maker->strings_lookup, buf, len, temp);
-
-    if (HASH_COUNT(frf_maker->strings_lookup) >= STRING_TABLE_LOOKUP_SIZE) {
-      HASH_ITER(hh, frf_maker->strings_lookup, entry, temp) {
-	HASH_DELETE(hh, frf_maker->strings_lookup, entry);
-	free(entry->str);
-	free(entry);
-	break;
-      }
-    }
 
     rval = frf_maker->string_table_written;
     if (len < 1 << 7) {
@@ -137,6 +139,11 @@ static uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * st
 
   return rval;
 }
+
+#undef uthash_malloc
+#undef uthash_free
+#define uthash_malloc(sz) malloc(sz)
+#define uthash_free(ptr, sz) free(ptr)
 
 static frf_maker_cc_t * frf_maker_make_static_cell(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
@@ -285,6 +292,9 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   char * dt_file = NULL;
   char buf[1024];
 
+  char * env_buffer_size; 
+  size_t buffer_size;
+
   pcre * content_re;
   const char * content_re_errptr = NULL;
   int content_re_err_off = 0;
@@ -304,6 +314,18 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->content_re = content_re;
 
   frf_maker->sym_handle = dlopen(dt_file, RTLD_NOW);
+
+  frf_maker->malloc_context = frf_malloc_context_new(FRF_MAKER_MAIN_BUFFER_SIZE);
+
+  env_buffer_size = getenv("FRF_MAKER_BUFFER_SIZE");
+
+  if (env_buffer_size) {
+    buffer_size = atoi(env_buffer_size);
+  } else {
+    buffer_size = FRF_MAKER_STR_BUFFER_SIZE;
+  }
+  frf_maker->str_malloc_context_size = buffer_size * 0.9;
+  frf_maker->str_malloc_context = frf_malloc_context_new(buffer_size);
 
   frf_maker->content = calloc(sizeof(frf_maker_content_t), 1);
   frf_maker->num_rows = 0;
@@ -331,8 +353,6 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->p13n_lookup = make_p13n_lookup(p13n_json);
   frf_maker->dc_lookup = make_dc_lookup(frf_maker, dc_json);
   frf_maker_precompile(frf_maker, frf_maker->content);
-
-  frf_maker->malloc_context = frf_malloc_context_new();
 
   json_decref(root);
 
@@ -510,11 +530,11 @@ static void frf_maker_destroy_ui2ui(frf_maker_ui2ui_t * ui2ui)
 void frf_maker_destroy(frf_maker_t * frf_maker)
 {
   frf_maker_destroy_content(frf_maker->content);
-  frf_maker_destroy_str2ui(frf_maker->strings_lookup);
   frf_maker_destroy_ui2ui(frf_maker->uniq_cells_lookup);
   frf_maker_destroy_str2ui(frf_maker->p13n_lookup);
   frf_maker_destroy_str2dc(frf_maker->dc_lookup);
   frf_malloc_context_destroy(frf_maker->malloc_context);
+  frf_malloc_context_destroy(frf_maker->str_malloc_context);
   pcre_free(frf_maker->content_re);
   free(frf_maker);
 }

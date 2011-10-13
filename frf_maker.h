@@ -13,8 +13,6 @@
 
 #include "frf_transform.h"
 
-#define STRING_TABLE_LOOKUP_SIZE 100000
-
 enum FRF_MAKER_CC_TYPE {
   FRF_MAKER_CC_TYPE_STATIC,
   FRF_MAKER_CC_TYPE_P13N,
@@ -93,6 +91,9 @@ typedef struct frf_maker {
   pcre * content_re;
 
   frf_malloc_context_t * malloc_context;
+  frf_malloc_context_t * str_malloc_context;
+  size_t str_malloc_context_size;
+
   void * sym_handle;
 
   FILE * string_table_fh;

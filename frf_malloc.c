@@ -1,11 +1,12 @@
 #include "frf_malloc.h"
 
-frf_malloc_context_t * frf_malloc_context_new()
+frf_malloc_context_t * frf_malloc_context_new(size_t size)
 {
   frf_malloc_context_t * c = malloc(sizeof(frf_malloc_context_t));
 
-  c->buf_ptr = c->buf = malloc(FRF_TRANSFORM_MALLOC_BUF_SIZE);
-  c->size = FRF_TRANSFORM_MALLOC_BUF_SIZE;
+  c->buf_ptr = c->buf = malloc(size);
+  c->size = size;
+  c->used = 0;
 
   c->next = NULL;
   c->prev = c;
@@ -86,6 +87,7 @@ void * frf_malloc(frf_malloc_context_t * c, size_t size)
 
   rval = tail->buf_ptr;
   tail->buf_ptr += size;
+  c->used += size;
   return rval;
 }
 
@@ -107,6 +109,7 @@ frf_malloc_context_t * frf_malloc_context_reset(frf_malloc_context_t * c) {
   tail->buf_ptr = tail->buf;
   tail->next = NULL;
   tail->prev = tail;
+  tail->used = 0;
 
   return tail;
 }
