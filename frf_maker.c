@@ -249,9 +249,11 @@ static frf_maker_cc_t * frf_maker_compile(frf_maker_t * frf_maker, frf_maker_con
   }
 
   DL_FOREACH(content->cc, cc_temp) {
-    stack_temp = calloc(sizeof(frf_maker_cc_t), 1);
+    stack_temp = frf_malloc(frf_maker->malloc_context, sizeof(frf_maker_cc_t));
     stack_temp->type = cc_temp->type;
     stack_temp->val = cc_temp->val;
+    stack_temp->next = NULL;
+    stack_temp->prev = NULL;
 
     if (! stack) {
       stack = stack_elt = stack_temp;
@@ -522,13 +524,17 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
   frf_maker_str2content_t  * dc_node;
   frf_maker_content_t * dc_content;
 
-  frf_maker_cc_t * cells_head = NULL, * cells_temp, * cells_current;
+  frf_maker_cc_t * cells_head = NULL, * cells_temp;
   frf_maker_vector_t * vector_head = NULL, * vector_temp, * vector_current;
   uint32_t uniq_vector_offset, vector_offset;
 
   int cells_cnt = 0, vector_cnt = 0;
 
   char * dt_result;
+
+  frf_malloc_context_t * c;
+
+  c = frf_maker->malloc_context = frf_malloc_context_reset(frf_maker->malloc_context);
 
   frf_maker_cc_t * stack_elt = frf_maker_compile(frf_maker, frf_maker->content);
   frf_maker_cc_t * stack_temp;
@@ -538,7 +544,7 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
     switch (stack_elt->type) {
       case FRF_MAKER_CC_TYPE_P13N:
         vector_cnt++;
-        vector_temp = calloc(sizeof(frf_maker_vector_t), 1);
+        vector_temp = frf_malloc(c, sizeof(frf_maker_vector_t));
 	
         vector_temp->offset = frf_maker_add_to_string_table(frf_maker, p13n[stack_elt->val.p13n], strlen(p13n[stack_elt->val.p13n]));
 
@@ -546,25 +552,23 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
 	goto ALL_ADD;
       case FRF_MAKER_CC_TYPE_DT:
         vector_cnt++;
-        vector_temp = calloc(sizeof(frf_maker_vector_t), 1);
+        vector_temp = frf_malloc(c, sizeof(frf_maker_vector_t));
 
-	dt_result = frf_transform_exec(&(frf_maker->malloc_context), stack_elt->val.exp, p13n);
+	dt_result = frf_transform_exec(frf_maker->malloc_context, stack_elt->val.exp, p13n);
 	
         vector_temp->offset = frf_maker_add_to_string_table(frf_maker, dt_result, strlen(dt_result));
-	free(dt_result);
 
 	DL_APPEND(vector_head, vector_temp);
 	goto ALL_ADD;
 ALL_ADD: case FRF_MAKER_CC_TYPE_STATIC:
         cells_cnt++;
-	cells_temp = calloc(sizeof(frf_maker_cc_t), 1);
+	cells_temp = frf_malloc(c, sizeof(frf_maker_cc_t));
 	cells_temp->type = stack_elt->type;
 	cells_temp->val.offset = stack_elt->val.offset;
 
 	DL_APPEND(cells_head, cells_temp);
 	stack_temp = stack_elt;
 	stack_elt = stack_elt->next;
-	free(stack_temp);
 
         break;
       case FRF_MAKER_CC_TYPE_DC:
@@ -582,7 +586,6 @@ ALL_ADD: case FRF_MAKER_CC_TYPE_STATIC:
 	  dc_tail = dc_tail->next;
 	}
 	dc_tail->next = stack_elt->next;
-	free(stack_elt);
 	stack_elt = dc_elt;
 
 	break;
@@ -596,17 +599,9 @@ ALL_ADD: case FRF_MAKER_CC_TYPE_STATIC:
 
   fwrite(&uniq_vector_offset, 4, 1, frf_maker->vector_fh);
 
-  DL_FOREACH_SAFE(vector_head, vector_current, vector_temp) {
+  DL_FOREACH(vector_head, vector_current) {
     vector_offset = htonl(vector_current->offset);
     fwrite(&vector_offset, 4, 1, frf_maker->vector_fh);
-
-    DL_DELETE(vector_head, vector_current);
-    free(vector_current);
-  }
-
-  DL_FOREACH_SAFE(cells_head, cells_current, cells_temp) {
-    DL_DELETE(cells_head, cells_current);
-    free(cells_current);
   }
 
   frf_maker->num_rows++;

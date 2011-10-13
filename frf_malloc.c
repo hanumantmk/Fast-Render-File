@@ -54,6 +54,14 @@ char * frf_transform_printf(frf_malloc_context_t * c, const char * format, ...)
   return out;
 }
 
+void * frf_calloc(frf_malloc_context_t * c, size_t size, int num)
+{
+  void * buf = frf_malloc(c, size * num);
+  memset(buf, 0, size * num);
+
+  return buf;
+}
+
 void * frf_malloc(frf_malloc_context_t * c, size_t size)
 {
   void * rval;
@@ -81,10 +89,10 @@ void * frf_malloc(frf_malloc_context_t * c, size_t size)
   return rval;
 }
 
-void frf_malloc_context_reset(frf_malloc_context_t ** c) {
+frf_malloc_context_t * frf_malloc_context_reset(frf_malloc_context_t * c) {
   frf_malloc_context_t * head, * elt, * temp, * tail;
 
-  head = *c;
+  head = c;
 
   tail = head->prev;
 
@@ -97,8 +105,10 @@ void frf_malloc_context_reset(frf_malloc_context_t ** c) {
     free(elt);
   }
   tail->buf_ptr = tail->buf;
+  tail->next = NULL;
+  tail->prev = tail;
 
-  *c = tail;
+  return tail;
 }
 
 void frf_malloc_context_destroy(frf_malloc_context_t * c)

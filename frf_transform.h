@@ -41,7 +41,7 @@ typedef struct frf_transform_p13n {
 } frf_transform_p13n_t;
 
 frf_transform_exp_t * frf_transform_compile(struct frf_maker * frf_maker, char * str, uint32_t len);
-char * frf_transform_exec(frf_malloc_context_t ** c, frf_transform_exp_t * e, char ** p13n);
+char * frf_transform_exec(frf_malloc_context_t * c, frf_transform_exp_t * e, char ** p13n);
 void frf_transform_pp(frf_transform_exp_t * e);
 
 #endif

@@ -171,16 +171,9 @@ char * frf_transform_exec_expression(frf_malloc_context_t * c, frf_transform_exp
   return rval;
 }
 
-char * frf_transform_exec(frf_malloc_context_t ** c, frf_transform_exp_t * e, char ** p13n)
+char * frf_transform_exec(frf_malloc_context_t * c, frf_transform_exp_t * e, char ** p13n)
 {
-  frf_malloc_context_reset(c);
-  char * rval = frf_transform_exec_expression(*c, e, p13n);
-
-  if (rval) {
-    return strdup(frf_transform_exec_expression(*c, e, p13n));
-  } else {
-    return NULL;
-  }
+  return frf_transform_exec_expression(c, e, p13n);
 }
 
 frf_transform_exp_t * frf_transform_compile(frf_maker_t * frf_maker, char * str, uint32_t len)
