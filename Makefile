@@ -1,6 +1,6 @@
 TARGETS = render stat make_frf
-LIBS = frf.o frf_maker.o frf_transform.o frf_transform_malloc.o frf_transform.tab.o lex.yy.o
-LIBS_HEADERS = frf.h frf_maker.h frf_transform_malloc.h frf_transform.h
+LIBS = frf.o frf_maker.o frf_transform.o frf_malloc.o frf_transform.tab.o lex.yy.o
+LIBS_HEADERS = frf.h frf_maker.h frf_malloc.h frf_transform.h
 LFLAGS = -ljansson -lpcre -ldl
 #CFLAGS += -O3
 CFLAGS += -O0 -Wall -ggdb
@@ -41,5 +41,5 @@ frf_transform.tab.c frf_transform.tab.h: frf_transform.y frf_transform.h
 lex.yy.c: frf_transform.l frf_transform.tab.h frf_transform.h
 	flex frf_transform.l
 
-frf_transform_base.so: frf_transform_base.o frf_transform_malloc.o
-	$(CC) $(CFLAGS) -shared frf_transform_malloc.o frf_transform_base.c -o frf_transform_base.so
+frf_transform_base.so: frf_transform_base.o frf_malloc.o
+	$(CC) $(CFLAGS) -shared frf_malloc.o frf_transform_base.c -o frf_transform_base.so

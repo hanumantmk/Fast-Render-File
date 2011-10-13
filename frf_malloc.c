@@ -1,8 +1,8 @@
-#include "frf_transform_malloc.h"
+#include "frf_malloc.h"
 
-frf_transform_malloc_context_t * frf_transform_malloc_context_new()
+frf_malloc_context_t * frf_malloc_context_new()
 {
-  frf_transform_malloc_context_t * c = malloc(sizeof(frf_transform_malloc_context_t));
+  frf_malloc_context_t * c = malloc(sizeof(frf_malloc_context_t));
 
   c->buf_ptr = c->buf = malloc(FRF_TRANSFORM_MALLOC_BUF_SIZE);
   c->size = FRF_TRANSFORM_MALLOC_BUF_SIZE;
@@ -13,27 +13,27 @@ frf_transform_malloc_context_t * frf_transform_malloc_context_new()
   return c;
 }
 
-char * frf_transform_strdup(frf_transform_malloc_context_t * c, char * str)
+char * frf_strdup(frf_malloc_context_t * c, char * str)
 {
   int size = strlen(str);
 
-  char * out = frf_transform_malloc(c, size + 1);
+  char * out = frf_malloc(c, size + 1);
   memcpy(out, str, size);
   out[size] = '\0';
 
   return out;
 }
 
-char * frf_transform_strndup(frf_transform_malloc_context_t * c, char * str, size_t len)
+char * frf_strndup(frf_malloc_context_t * c, char * str, size_t len)
 {
-  char * out = frf_transform_malloc(c, len + 1);
+  char * out = frf_malloc(c, len + 1);
   memcpy(out, str, len);
   out[len] = '\0';
 
   return out;
 }
 
-char * frf_transform_printf(frf_transform_malloc_context_t * c, const char * format, ...)
+char * frf_transform_printf(frf_malloc_context_t * c, const char * format, ...)
 {
   int len;
 
@@ -45,7 +45,7 @@ char * frf_transform_printf(frf_transform_malloc_context_t * c, const char * for
   len = vsnprintf(NULL, 0, format, args);
   va_end(args);
 
-  out = frf_transform_malloc(c, len + 1);
+  out = frf_malloc(c, len + 1);
 
   va_start(args, format);
   vsnprintf(out, len, format, args);
@@ -54,10 +54,10 @@ char * frf_transform_printf(frf_transform_malloc_context_t * c, const char * for
   return out;
 }
 
-void * frf_transform_malloc(frf_transform_malloc_context_t * c, size_t size)
+void * frf_malloc(frf_malloc_context_t * c, size_t size)
 {
   void * rval;
-  frf_transform_malloc_context_t * new_context, * tail;
+  frf_malloc_context_t * new_context, * tail;
   size_t new_size;
 
   tail = c->prev;
@@ -68,7 +68,7 @@ void * frf_transform_malloc(frf_transform_malloc_context_t * c, size_t size)
     if (new_size < size) {
       new_size = size * 2;
     }
-    new_context = malloc(sizeof(frf_transform_malloc_context_t));
+    new_context = malloc(sizeof(frf_malloc_context_t));
     new_context->buf_ptr = new_context->buf = malloc(new_size);
     new_context->size = new_size;
     DL_APPEND(c, new_context);
@@ -81,8 +81,8 @@ void * frf_transform_malloc(frf_transform_malloc_context_t * c, size_t size)
   return rval;
 }
 
-void frf_transform_malloc_context_reset(frf_transform_malloc_context_t ** c) {
-  frf_transform_malloc_context_t * head, * elt, * temp, * tail;
+void frf_malloc_context_reset(frf_malloc_context_t ** c) {
+  frf_malloc_context_t * head, * elt, * temp, * tail;
 
   head = *c;
 
@@ -101,9 +101,9 @@ void frf_transform_malloc_context_reset(frf_transform_malloc_context_t ** c) {
   *c = tail;
 }
 
-void frf_transform_malloc_context_destroy(frf_transform_malloc_context_t * c)
+void frf_malloc_context_destroy(frf_malloc_context_t * c)
 {
-  frf_transform_malloc_context_t * elt, * temp;
+  frf_malloc_context_t * elt, * temp;
   DL_FOREACH_SAFE(c, elt, temp) {
     DL_DELETE(c, elt);
     free(elt->buf);

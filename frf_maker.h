@@ -92,7 +92,7 @@ typedef struct frf_maker {
 
   pcre * content_re;
 
-  frf_transform_malloc_context_t * malloc_context;
+  frf_malloc_context_t * malloc_context;
   void * sym_handle;
 
   FILE * string_table_fh;

@@ -330,7 +330,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->dc_lookup = make_dc_lookup(frf_maker, dc_json);
   frf_maker_precompile(frf_maker, frf_maker->content);
 
-  frf_maker->malloc_context = frf_transform_malloc_context_new();
+  frf_maker->malloc_context = frf_malloc_context_new();
 
   json_decref(root);
 
@@ -512,7 +512,7 @@ void frf_maker_destroy(frf_maker_t * frf_maker)
   frf_maker_destroy_ui2ui(frf_maker->uniq_cells_lookup);
   frf_maker_destroy_str2ui(frf_maker->p13n_lookup);
   frf_maker_destroy_str2dc(frf_maker->dc_lookup);
-  frf_transform_malloc_context_destroy(frf_maker->malloc_context);
+  frf_malloc_context_destroy(frf_maker->malloc_context);
   pcre_free(frf_maker->content_re);
   free(frf_maker);
 }

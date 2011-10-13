@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "frf_transform.h"
 
-char * FRF_TRANSFORM_trunc(frf_transform_malloc_context_t * c, int argc, char ** argv)
+char * FRF_TRANSFORM_trunc(frf_malloc_context_t * c, int argc, char ** argv)
 {
   int len, size;
 
@@ -18,7 +18,7 @@ char * FRF_TRANSFORM_trunc(frf_transform_malloc_context_t * c, int argc, char **
     size = len;
   }
 
-  char * buf = frf_transform_malloc(c, size + 1);
+  char * buf = frf_malloc(c, size + 1);
   memcpy(buf, argv[0], size);
 
   buf[size] = '\0';
@@ -26,7 +26,7 @@ char * FRF_TRANSFORM_trunc(frf_transform_malloc_context_t * c, int argc, char **
   return buf;
 }
 
-char * FRF_TRANSFORM_add(frf_transform_malloc_context_t * c, int argc, char ** argv)
+char * FRF_TRANSFORM_add(frf_malloc_context_t * c, int argc, char ** argv)
 {
   int i, acc = 0;
 

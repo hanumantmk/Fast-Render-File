@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include "frf_transform_malloc.h"
+#include "frf_malloc.h"
 
 #ifndef FRF_TRANSFORM_DEFINE
 #define FRF_TRANSFORM_DEFINE
@@ -31,7 +31,7 @@ typedef struct frf_transform_arg {
 typedef struct frf_transform_func {
   frf_transform_arg_t * args;
   int argc;
-  char * (*f)(frf_transform_malloc_context_t *, int, char **);
+  char * (*f)(frf_malloc_context_t *, int, char **);
   char * name;
 } frf_transform_func_t;
 
@@ -41,7 +41,7 @@ typedef struct frf_transform_p13n {
 } frf_transform_p13n_t;
 
 frf_transform_exp_t * frf_transform_compile(struct frf_maker * frf_maker, char * str, uint32_t len);
-char * frf_transform_exec(frf_transform_malloc_context_t ** c, frf_transform_exp_t * e, char ** p13n);
+char * frf_transform_exec(frf_malloc_context_t ** c, frf_transform_exp_t * e, char ** p13n);
 void frf_transform_pp(frf_transform_exp_t * e);
 
 #endif

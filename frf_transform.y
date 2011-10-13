@@ -6,7 +6,7 @@
 #include <error.h>
 #include <dlfcn.h>
 #include "frf_transform.h"
-#include "frf_transform_malloc.h"
+#include "frf_malloc.h"
 #include "frf_maker.h"
 
 extern int yylex();
@@ -139,7 +139,7 @@ void frf_transform_pp(frf_transform_exp_t * e)
   printf("\n");
 }
 
-char * frf_transform_exec_expression(frf_transform_malloc_context_t * c, frf_transform_exp_t * e, char ** p13n)
+char * frf_transform_exec_expression(frf_malloc_context_t * c, frf_transform_exp_t * e, char ** p13n)
 {
   int i;
   char * buf[100];
@@ -171,9 +171,9 @@ char * frf_transform_exec_expression(frf_transform_malloc_context_t * c, frf_tra
   return rval;
 }
 
-char * frf_transform_exec(frf_transform_malloc_context_t ** c, frf_transform_exp_t * e, char ** p13n)
+char * frf_transform_exec(frf_malloc_context_t ** c, frf_transform_exp_t * e, char ** p13n)
 {
-  frf_transform_malloc_context_reset(c);
+  frf_malloc_context_reset(c);
   char * rval = frf_transform_exec_expression(*c, e, p13n);
 
   if (rval) {
