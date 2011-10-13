@@ -290,7 +290,8 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   json_error_t json_error;
   char * body = NULL;
   char * dt_file = NULL;
-  char buf[1024];
+
+  UT_string *str;
 
   char * env_buffer_size; 
   size_t buffer_size;
@@ -298,6 +299,8 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   pcre * content_re;
   const char * content_re_errptr = NULL;
   int content_re_err_off = 0;
+
+  utstring_new(str);
 
   root = json_load_file(content_file_name, 0, &json_error);
   if (! root) {
@@ -332,19 +335,22 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
 
   frf_maker->output_file_name = output_file_name;
 
-  sprintf(buf, "%s.st", output_file_name);
-  frf_maker->string_table_fh = fopen(buf, "w");
+  utstring_printf(str, "%s.st", output_file_name);
+  frf_maker->string_table_fh = fopen(utstring_body(str), "w");
   frf_maker->string_table_written = 1;
 
-  sprintf(buf, "%s.uc", output_file_name);
-  frf_maker->unique_cells_fh = fopen(buf, "w");
+  utstring_clear(str);
+  utstring_printf(str, "%s.uc", output_file_name);
+  frf_maker->unique_cells_fh = fopen(utstring_body(str), "w");
   frf_maker->unique_cells_written = 0;
 
-  sprintf(buf, "%s.v", output_file_name);
-  frf_maker->vector_fh = fopen(buf, "w");
+  utstring_clear(str);
+  utstring_printf(str, "%s.v", output_file_name);
+  frf_maker->vector_fh = fopen(utstring_body(str), "w");
 
-  sprintf(buf, "%s.h", output_file_name);
-  frf_maker->header_fh = fopen(buf, "w");
+  utstring_clear(str);
+  utstring_printf(str, "%s.h", output_file_name);
+  frf_maker->header_fh = fopen(utstring_body(str), "w");
 
   frf_maker->strings_lookup = NULL;
   frf_maker->uniq_cells_lookup = NULL;
@@ -353,6 +359,8 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->p13n_lookup = make_p13n_lookup(p13n_json);
   frf_maker->dc_lookup = make_dc_lookup(frf_maker, dc_json);
   frf_maker_precompile(frf_maker, frf_maker->content);
+
+  utstring_free(str);
 
   json_decref(root);
 
@@ -372,20 +380,9 @@ static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_
 
   frf_maker_ui2ui_t * uc_temp = NULL;
 
-  static uint32_t * static_key = NULL;
-  static int static_key_size = 0;
-
   key_len = cells_cnt * sizeof(uint32_t);
 
-  if (! static_key) {
-    static_key_size = key_len * 2;
-    static_key = malloc(static_key_size);
-  } else if (static_key_size < key_len) {
-    static_key_size = key_len * 2;
-    static_key = realloc(static_key, static_key_size);
-  }
-
-  key = static_key;
+  key = frf_malloc(frf_maker->malloc_context, key_len);
 
   DL_FOREACH(cells, elt) {
     switch(elt->type) {
@@ -411,7 +408,7 @@ static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_
     memcpy(uc_temp->key, key, key_len);
     uc_temp->offset = rval;
 
-    HASH_ADD_KEYPTR(hh, frf_maker->uniq_cells_lookup, key, key_len, uc_temp);
+    HASH_ADD_KEYPTR(hh, frf_maker->uniq_cells_lookup, uc_temp->key, key_len, uc_temp);
 
     temp = htonl(cells_cnt);
     fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
@@ -438,9 +435,13 @@ static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_
 int frf_maker_finish(frf_maker_t * frf_maker)
 {
   uint32_t header[4];
-  char buf[1024];
+
+  UT_string * str;
+
   char * ofn = frf_maker->output_file_name;
   int retcode;
+
+  utstring_new(str);
 
   header[0] = htonl(frf_maker->num_rows);
   header[1] = htonl(16);
@@ -453,12 +454,15 @@ int frf_maker_finish(frf_maker_t * frf_maker)
   fclose(frf_maker->unique_cells_fh);
   fclose(frf_maker->header_fh);
 
-  sprintf(buf, "cat %s.h %s.st %s.uc %s.v > %s", ofn, ofn, ofn, ofn, ofn);
-  if ((retcode = system(buf)) == -1) {
+  utstring_printf(str, "cat %s.h %s.st %s.uc %s.v > %s", ofn, ofn, ofn, ofn, ofn);
+  if ((retcode = system(utstring_body(str))) == -1) {
     error(1, 0, "System failed with: %d", retcode);
   }
-  sprintf(buf, "rm %s.h %s.st %s.uc %s.v", ofn, ofn, ofn, ofn);
-  system(buf);
+  utstring_clear(str);
+  utstring_printf(str, "rm %s.h %s.st %s.uc %s.v", ofn, ofn, ofn, ofn);
+  system(utstring_body(str));
+
+  utstring_free(str);
 
   return 0;
 }

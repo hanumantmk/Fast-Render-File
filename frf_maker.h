@@ -8,6 +8,7 @@
 #include <pcre.h>
 #include "uthash.h"
 #include "utlist.h"
+#include "utstring.h"
 #include <stdio.h>
 #include <error.h>
 

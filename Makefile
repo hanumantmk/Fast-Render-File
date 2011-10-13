@@ -20,6 +20,9 @@ libfrf.a: $(LIBS)
 test.frf: data/content.json data/p13n.txt make_frf frf_transform_base.so
 	./make_frf data/content.json test.frf data/p13n.txt
 
+test_huge: make_frf
+	time -p ./make_frf data/content.json huge.frf data/huge_p13n.txt
+
 valgrind_write: test.frf make_frf
 	valgrind --leak-check=yes ./make_frf data/content.json test.frf data/p13n.txt
 

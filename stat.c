@@ -1,5 +1,6 @@
 #include "frf.h"
 #include "uthash.h"
+#include "utstring.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,18 +16,18 @@ struct frf_uniq_cells {
   UT_hash_handle hh;
 }; 
 
-void human_readable_size(double d, char * buf)
+void human_readable_size(double d, UT_string * buf)
 {
   if (d > 1 << 30) {
-    sprintf(buf, "%.2fG", d / (1 << 30));
+    utstring_printf(buf, "%.2fG", d / (1 << 30));
   } else if (d > 1 << 20) {
-    sprintf(buf, "%.2fM", d / (1 << 20));
+    utstring_printf(buf, "%.2fM", d / (1 << 20));
   } else if (d > 1 << 10) {
-    sprintf(buf, "%.2fK", d / (1 << 10));
+    utstring_printf(buf, "%.2fK", d / (1 << 10));
   } else if (d > 0) {
-    sprintf(buf, "%.0fB", d);
+    utstring_printf(buf, "%.0fB", d);
   } else {
-    sprintf(buf, "error");
+    utstring_printf(buf, "error");
   }
 }
 
@@ -56,13 +57,15 @@ void print_vector_info (frf_t * frf)
 
   struct frf_uniq_cells * uniq_c_hash = NULL;
 
-  char human_render_size[100];
+  UT_string * human_render_size;
 
   uint32_t offset;
 
   struct iovec iov[IOV_MAX];
   int iov_cnt;
   int i;
+
+  utstring_new(human_render_size);
 
   do {
     iov_cnt = _frf_iovec(frf, iov);
@@ -146,18 +149,25 @@ Render Size            %s\n\
    uniq_small + uniq_medium + uniq_large, uniq_small, uniq_medium, uniq_large,\
    uniq_c,\
    bytes / uniq_bytes, (100 * (total_size / uniq_bytes)) - 100,\
-   human_render_size\
+   utstring_body(human_render_size)\
 );
+
+  utstring_free(human_render_size);
 
   return;
 }
 
 void print_file_stats(frf_t * frf)
 {
-  char total_size[100];
-  char string_table_size[100];
-  char unique_cells_size[100];
-  char row_data_size[100];
+  UT_string * total_size;
+  UT_string * string_table_size;
+  UT_string * unique_cells_size;
+  UT_string * row_data_size;
+
+  utstring_new(total_size);
+  utstring_new(string_table_size);
+  utstring_new(unique_cells_size);
+  utstring_new(row_data_size);
 
   human_readable_size((double)((char *)frf->_end - (char *)frf->_mmap_base), total_size);
   human_readable_size((double)((char *)frf->_unique_cells_base - (char *)frf->_mmap_base - 16), string_table_size);
@@ -173,7 +183,12 @@ Total Size        %s\n\
   Row Data        %s\n\
 \n\
 Num Records       %d\n\
-", frf->file_name, total_size, string_table_size, unique_cells_size, row_data_size, frf->num_rows);
+", frf->file_name, utstring_body(total_size), utstring_body(string_table_size), utstring_body(unique_cells_size), utstring_body(row_data_size), frf->num_rows);
+
+  utstring_free(total_size);
+  utstring_free(string_table_size);
+  utstring_free(unique_cells_size);
+  utstring_free(row_data_size);
 }
 
 int main (int argc, char ** argv)

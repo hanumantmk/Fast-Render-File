@@ -69,15 +69,17 @@ expression:
 
 func:
 	     STRING LEFT_PAREN list RIGHT_PAREN {
-	       char buf[300];
+	       UT_string * str;
 	       frf_transform_func_t * f = calloc(sizeof(frf_transform_func_t), 1);
 	       f->name = $1;
 	       f->args = $3;
 
-	       sprintf(buf, "FRF_TRANSFORM_%s", $1);
-	       f->f = dlsym(maker->sym_handle, buf);
+	       utstring_new(str);
+
+	       utstring_printf(str, "FRF_TRANSFORM_%s", $1);
+	       f->f = dlsym(maker->sym_handle, utstring_body(str));
 	       if (! f->f) {
-		 error(1, 0, "No symbol: %s found in symbol table", buf);
+		 error(1, 0, "No symbol: %s found in symbol table", utstring_body(str));
 	       }
 
 	       int i = 0;
@@ -86,6 +88,8 @@ func:
 		 i++;
 	       }
 	       f->argc = i;
+
+	       utstring_free(str);
 
 	       $$ = f;
 	     }
