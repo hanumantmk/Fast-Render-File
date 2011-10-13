@@ -348,10 +348,22 @@ static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_
 
   frf_maker_cc_t * elt;
 
-  frf_maker_ui2ui_t * uc_temp;
+  frf_maker_ui2ui_t * uc_temp = NULL;
+
+  static uint32_t * static_key = NULL;
+  static int static_key_size = 0;
 
   key_len = cells_cnt * sizeof(uint32_t);
-  key = malloc(key_len);
+
+  if (! static_key) {
+    static_key_size = key_len * 2;
+    static_key = malloc(static_key_size);
+  } else if (static_key_size < key_len) {
+    static_key_size = key_len * 2;
+    static_key = realloc(static_key, static_key_size);
+  }
+
+  key = static_key;
 
   DL_FOREACH(cells, elt) {
     switch(elt->type) {
@@ -368,13 +380,13 @@ static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_
 
   if (uc_temp) {
     rval = uc_temp->offset;
-    free(key);
   } else {
     rval = frf_maker->unique_cells_written;
 
     uc_temp = malloc(sizeof(frf_maker_ui2ui_t));
 
-    uc_temp->key = key;
+    uc_temp->key = malloc(key_len);
+    memcpy(uc_temp->key, key, key_len);
     uc_temp->offset = rval;
 
     HASH_ADD_KEYPTR(hh, frf_maker->uniq_cells_lookup, key, key_len, uc_temp);

@@ -1,9 +1,4 @@
 #include "frf_transform_malloc.h"
-#include "string.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "error.h"
-#include "utlist.h"
 
 frf_transform_malloc_context_t * frf_transform_malloc_context_new()
 {
@@ -34,6 +29,27 @@ char * frf_transform_strndup(frf_transform_malloc_context_t * c, char * str, siz
   char * out = frf_transform_malloc(c, len + 1);
   memcpy(out, str, len);
   out[len] = '\0';
+
+  return out;
+}
+
+char * frf_transform_printf(frf_transform_malloc_context_t * c, const char * format, ...)
+{
+  int len;
+
+  va_list args;
+
+  char * out;
+
+  va_start(args, format);
+  len = vsnprintf(NULL, 0, format, args);
+  va_end(args);
+
+  out = frf_transform_malloc(c, len + 1);
+
+  va_start(args, format);
+  vsnprintf(out, len, format, args);
+  va_end(args);
 
   return out;
 }

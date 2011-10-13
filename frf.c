@@ -118,7 +118,7 @@ int _frf_iovec(frf_t * frf, struct iovec * iov)
 
 ssize_t frf_write(frf_t * frf, int fd)
 {
-  struct iovec iov[IOV_MAX];
+  static struct iovec iov[IOV_MAX];
 
   int iov_cnt = _frf_iovec(frf, iov);
 
@@ -145,7 +145,7 @@ uint32_t frf_get_offset(frf_t * frf)
 
 int frf_get_render_size(frf_t * frf)
 {
-  struct iovec iov[IOV_MAX];
+  static struct iovec iov[IOV_MAX];
 
   int iov_cnt = _frf_iovec(frf, iov);
   int i;
@@ -170,7 +170,7 @@ int frf_seek(frf_t * frf, uint32_t offset)
 
 int frf_render_to_buffer(frf_t * frf, char * buf, int buf_size)
 {
-  struct iovec iov[IOV_MAX];
+  static struct iovec iov[IOV_MAX];
 
   int iov_cnt = _frf_iovec(frf, iov);
   int i;

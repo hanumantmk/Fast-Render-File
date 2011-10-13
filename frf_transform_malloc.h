@@ -1,4 +1,9 @@
 #include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
+#include <stdio.h>
+#include <error.h>
+#include "utlist.h"
 
 #ifndef FRF_TRANSFORM_MALLOC_BUF_SIZE
 #define FRF_TRANSFORM_MALLOC_BUF_SIZE 2
@@ -17,4 +22,5 @@ void frf_transform_malloc_context_reset(frf_transform_malloc_context_t ** c);
 void * frf_transform_malloc(frf_transform_malloc_context_t * c, size_t size);
 char * frf_transform_strndup(frf_transform_malloc_context_t * c, char * str, size_t len);
 char * frf_transform_strdup(frf_transform_malloc_context_t * c, char * str);
+char * frf_transform_printf(frf_transform_malloc_context_t * c, const char * format, ...);
 #endif

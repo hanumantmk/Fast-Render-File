@@ -2,7 +2,7 @@ TARGETS = render stat make_frf
 LIBS = frf.o frf_maker.o frf_transform.o frf_transform_malloc.o frf_transform.tab.o lex.yy.o
 LIBS_HEADERS = frf.h frf_maker.h frf_transform_malloc.h frf_transform.h
 LFLAGS = -ljansson -lpcre -ldl
-# CFLAGS += -O3
+#CFLAGS += -O3
 CFLAGS += -O0 -Wall -ggdb
 
 default: $(TARGETS) frf_transform_base.so libfrf.a
@@ -17,11 +17,14 @@ $(TARGETS): % : %.o libfrf.a
 libfrf.a: $(LIBS)
 	ar rcs $@ $^
 
-test.frf: data/content.json data/p13n.txt make_frf
+test.frf: data/content.json data/p13n.txt make_frf frf_transform_base.so
 	./make_frf data/content.json test.frf data/p13n.txt
 
-valgrind: test.frf make_frf
+valgrind_write: test.frf make_frf
 	valgrind --leak-check=yes ./make_frf data/content.json test.frf data/p13n.txt
+
+valgrind_read: test.frf render
+	valgrind --leak-check=yes ./render test.frf > /dev/null
 
 test: frf_transform_base.so render stat test.frf
 	time ./render test.frf > /dev/null
