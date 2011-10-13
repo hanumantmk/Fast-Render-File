@@ -15,8 +15,7 @@ static frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
     key = (char *)json_string_value(json_array_get(p13n_json, i));
 
     p13n_node = malloc(sizeof(frf_maker_str2ui_t));
-    p13n_node->str = calloc(strlen(key) + 1, 1);
-    memcpy(p13n_node->str, key, strlen(key));
+    p13n_node->str = strndup(key, strlen(key));
     p13n_node->offset = i;
 
     HASH_ADD_KEYPTR(hh, p13n_lookup, p13n_node->str, strlen(key), p13n_node);
@@ -51,8 +50,7 @@ static frf_maker_str2dc_t * make_dc_lookup(frf_maker_t * frf_maker, json_t * dc_
     }
 
     dc_node = calloc(sizeof(frf_maker_str2dc_t), 1);
-    dc_node->str = calloc(strlen(key) + 1, 1);
-    memcpy(dc_node->str, key, strlen(key));
+    dc_node->str = strndup(key, strlen(key));
 
     HASH_FIND(hh, frf_maker->p13n_lookup, p13n_key, strlen(p13n_key), p13n_node);
 
@@ -66,8 +64,7 @@ static frf_maker_str2dc_t * make_dc_lookup(frf_maker_t * frf_maker, json_t * dc_
 
     dc_node->def = content_temp;
 
-    content_temp->content = calloc(strlen(default_alt) + 1, 1);
-    memcpy(content_temp->content, default_alt, strlen(default_alt));
+    content_temp->content = strndup(default_alt, strlen(default_alt));
 
     HASH_ADD_KEYPTR(hh, dc_lookup, key, strlen(key), dc_node);
 
@@ -79,12 +76,10 @@ static frf_maker_str2dc_t * make_dc_lookup(frf_maker_t * frf_maker, json_t * dc_
       alt_content_temp = calloc(sizeof(frf_maker_content_t), 1);
 
       content_node = calloc(sizeof(frf_maker_str2content_t), 1);
-      content_node->str = calloc(strlen(alt_key) + 1, 1);
-      memcpy(content_node->str, alt_key, strlen(alt_key));
+      content_node->str = strndup(alt_key, strlen(alt_key));
 
       content_node->content = alt_content_temp;
-      alt_content_temp->content = calloc(strlen(alt_value) + 1, 1);
-      memcpy(alt_content_temp->content, alt_value, strlen(alt_value));
+      alt_content_temp->content = strndup(alt_value, strlen(alt_value));
 
       HASH_ADD_KEYPTR(hh, dc_node->alternatives, content_node->str, strlen(alt_key), content_node);
 
@@ -113,9 +108,7 @@ static uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * st
     rval = temp->offset;
   } else {
     temp = malloc(sizeof(frf_maker_str2ui_t));
-    buf = malloc(len);
-    memcpy(buf, str, len);
-    temp->str = buf;
+    temp->str = buf = strndup(str, len);
     temp->offset = frf_maker->string_table_written;
     HASH_ADD_KEYPTR(hh, frf_maker->strings_lookup, buf, len, temp);
 
@@ -332,8 +325,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->strings_lookup = NULL;
   frf_maker->uniq_cells_lookup = NULL;
 
-  frf_maker->content->content = calloc(strlen(body) + 1, 1);
-  memcpy(frf_maker->content->content, body, strlen(body));
+  frf_maker->content->content = strndup(body, strlen(body));
   frf_maker->p13n_lookup = make_p13n_lookup(p13n_json);
   frf_maker->dc_lookup = make_dc_lookup(frf_maker, dc_json);
   frf_maker_precompile(frf_maker, frf_maker->content);
@@ -345,47 +337,47 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   return 0;
 }
 
-
 static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_t * cells, int cells_cnt, frf_maker_vector_t * vector, int vector_cnt)
 {
   uint32_t rval, temp;
 
-  char * buf;
+  uint32_t * key;
+  uint32_t key_len;
 
-  UT_string * s;
+  int i = 0;
 
   frf_maker_cc_t * elt;
 
-  frf_maker_str2ui_t * uc_temp;
+  frf_maker_ui2ui_t * uc_temp;
 
-  utstring_new(s);
+  key_len = cells_cnt * sizeof(uint32_t);
+  key = malloc(key_len);
 
   DL_FOREACH(cells, elt) {
     switch(elt->type) {
       case FRF_MAKER_CC_TYPE_STATIC:
-	utstring_printf(s, "%d.", elt->val.offset);
+        key[i] = elt->val.offset;
 	break;
       default:
-        utstring_printf(s, ".");
+        key[i] = 0;
     }
+    i++;
   }
 
-  HASH_FIND(hh, frf_maker->uniq_cells_lookup, utstring_body(s), utstring_len(s), uc_temp);
+  HASH_FIND(hh, frf_maker->uniq_cells_lookup, key, key_len, uc_temp);
 
   if (uc_temp) {
     rval = uc_temp->offset;
+    free(key);
   } else {
     rval = frf_maker->unique_cells_written;
 
-    uc_temp = malloc(sizeof(frf_maker_str2ui_t));
+    uc_temp = malloc(sizeof(frf_maker_ui2ui_t));
 
-    buf = malloc(utstring_len(s));
-    memcpy(buf, utstring_body(s), utstring_len(s));
-
-    uc_temp->str = buf;
+    uc_temp->key = key;
     uc_temp->offset = rval;
 
-    HASH_ADD_KEYPTR(hh, frf_maker->uniq_cells_lookup, buf, utstring_len(s), uc_temp);
+    HASH_ADD_KEYPTR(hh, frf_maker->uniq_cells_lookup, key, key_len, uc_temp);
 
     temp = htonl(cells_cnt);
     fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
@@ -405,8 +397,6 @@ static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_
       frf_maker->unique_cells_written += 4;
     }
   }
-
-  utstring_free(s);
 
   return rval;
 }
@@ -492,18 +482,30 @@ static void frf_maker_destroy_str2ui(frf_maker_str2ui_t * str2ui)
   }
 }
 
+static void frf_maker_destroy_ui2ui(frf_maker_ui2ui_t * ui2ui)
+{
+  frf_maker_ui2ui_t * entry, * temp;
+
+  HASH_ITER(hh, ui2ui, entry, temp) {
+    HASH_DELETE(hh, ui2ui, entry);
+    free(entry->key);
+    free(entry);
+  }
+}
+
 void frf_maker_destroy(frf_maker_t * frf_maker)
 {
   frf_maker_destroy_content(frf_maker->content);
   frf_maker_destroy_str2ui(frf_maker->strings_lookup);
-  frf_maker_destroy_str2ui(frf_maker->uniq_cells_lookup);
+  frf_maker_destroy_ui2ui(frf_maker->uniq_cells_lookup);
   frf_maker_destroy_str2ui(frf_maker->p13n_lookup);
   frf_maker_destroy_str2dc(frf_maker->dc_lookup);
+  frf_transform_malloc_context_destroy(frf_maker->malloc_context);
   pcre_free(frf_maker->content_re);
   free(frf_maker);
 }
 
-int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths)
+int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
 {
   frf_maker_str2content_t  * dc_node;
   frf_maker_content_t * dc_content;
@@ -526,7 +528,7 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths)
         vector_cnt++;
         vector_temp = calloc(sizeof(frf_maker_vector_t), 1);
 	
-        vector_temp->offset = frf_maker_add_to_string_table(frf_maker, p13n[stack_elt->val.p13n], lengths[stack_elt->val.p13n]);
+        vector_temp->offset = frf_maker_add_to_string_table(frf_maker, p13n[stack_elt->val.p13n], strlen(p13n[stack_elt->val.p13n]));
 
 	DL_APPEND(vector_head, vector_temp);
 	goto ALL_ADD;
@@ -554,7 +556,7 @@ ALL_ADD: case FRF_MAKER_CC_TYPE_STATIC:
 
         break;
       case FRF_MAKER_CC_TYPE_DC:
-        HASH_FIND(hh, stack_elt->val.dc->alternatives, p13n[stack_elt->val.dc->p13n_offset], lengths[stack_elt->val.dc->p13n_offset], dc_node);
+        HASH_FIND(hh, stack_elt->val.dc->alternatives, p13n[stack_elt->val.dc->p13n_offset], strlen(p13n[stack_elt->val.dc->p13n_offset]), dc_node);
 
 	if (dc_node) {
 	  dc_content = dc_node->content;

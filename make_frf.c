@@ -12,7 +12,6 @@ int main (int argc, char ** argv)
   ssize_t read;
 
   char * p13n[100];
-  uint32_t lengths[100];
 
   int i;
 
@@ -28,15 +27,13 @@ int main (int argc, char ** argv)
     i = 0;
 
     while ((end = strchr(start, '\t')) != NULL) {
-      p13n[i]    = start;
-      lengths[i] = end - start;
-      i++;
+      p13n[i++] = start;
+      *end = '\0';
       start = end + 1;
     }
-    p13n[i]    = start;
-    lengths[i] = strlen(start);
+    p13n[i] = start;
 
-    frf_maker_add(frf_maker, p13n, lengths);
+    frf_maker_add(frf_maker, p13n);
   }
 
   free(line);

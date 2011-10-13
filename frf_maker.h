@@ -8,7 +8,6 @@
 #include <pcre.h>
 #include "uthash.h"
 #include "utlist.h"
-#include "utstring.h"
 #include <stdio.h>
 #include <error.h>
 
@@ -22,6 +21,13 @@ enum FRF_MAKER_CC_TYPE {
   FRF_MAKER_CC_TYPE_DC,
   FRF_MAKER_CC_TYPE_DT
 };
+
+typedef struct frf_maker_ui2ui {
+  uint32_t * key;
+  uint32_t offset;
+
+  UT_hash_handle hh;
+} frf_maker_ui2ui_t ;
 
 typedef struct frf_maker_str2ui {
   char * str;
@@ -82,7 +88,7 @@ typedef struct frf_maker {
   frf_maker_str2dc_t * dc_lookup;
 
   frf_maker_str2ui_t * strings_lookup;
-  frf_maker_str2ui_t * uniq_cells_lookup;
+  frf_maker_ui2ui_t * uniq_cells_lookup;
 
   pcre * content_re;
 
@@ -101,7 +107,7 @@ typedef struct frf_maker {
 
 int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * output_file_name);
 frf_maker_t * frf_maker_new(char * content_file_name, char * output_file_name);
-int frf_maker_add(frf_maker_t * frf_maker, char ** p13n, uint32_t * lengths);
+int frf_maker_add(frf_maker_t * frf_maker, char ** p13n);
 int frf_maker_finish(frf_maker_t * frf_maker);
 void frf_maker_destroy(frf_maker_t * frf_maker);
 #endif

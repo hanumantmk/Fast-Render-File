@@ -7,6 +7,10 @@ char * FRF_TRANSFORM_trunc(frf_transform_malloc_context_t * c, int argc, char **
 {
   int len, size;
 
+  if (argc != 2) {
+    return NULL;
+  }
+
   len = strlen(argv[0]);
   size = atoi(argv[1]);
 

@@ -143,6 +143,7 @@ char * frf_transform_exec_expression(frf_transform_malloc_context_t * c, frf_tra
 {
   int i;
   char * buf[100];
+  char * temp;
   char * rval = NULL;
   frf_transform_arg_t * arg;
   switch (e->type) {
@@ -155,9 +156,13 @@ char * frf_transform_exec_expression(frf_transform_malloc_context_t * c, frf_tra
     case EXP_TYPE_FUNC:
       i = 0;
       DL_FOREACH(e->val.f->args, arg) {
-	buf[i++] = frf_transform_exec_expression(c, arg->exp, p13n);
+	temp = buf[i++] = frf_transform_exec_expression(c, arg->exp, p13n);
+
+	if (temp == NULL) {
+	  return NULL;
+	}
       }
-      rval = e->val.f->f(c, e->val.f->argc, buf);
+      rval = e->val.f->f(c, i, buf);
       break;
     default:
       error(1, 0, "We shouldn't be here with: %d", e->type);
@@ -169,7 +174,13 @@ char * frf_transform_exec_expression(frf_transform_malloc_context_t * c, frf_tra
 char * frf_transform_exec(frf_transform_malloc_context_t ** c, frf_transform_exp_t * e, char ** p13n)
 {
   frf_transform_malloc_context_reset(c);
-  return strdup(frf_transform_exec_expression(*c, e, p13n));
+  char * rval = frf_transform_exec_expression(*c, e, p13n);
+
+  if (rval) {
+    return strdup(frf_transform_exec_expression(*c, e, p13n));
+  } else {
+    return NULL;
+  }
 }
 
 frf_transform_exp_t * frf_transform_compile(frf_maker_t * frf_maker, char * str, uint32_t len)
