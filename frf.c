@@ -3,6 +3,11 @@
 #define FRF_HIGH_BIT   (1 << 7)
 #define FRF_LARGE_MASK (1 << 31)
 
+union uint32_t2char {
+  uint32_t ui;
+  char chars[5];
+};
+
 int frf_init(frf_t * frf, char * file_name)
 {
   uint32_t * mmap_base;
@@ -35,6 +40,7 @@ int frf_init(frf_t * frf, char * file_name)
   frf->_string_table_base = (char *)((char *)mmap_base + ntohl(*(mmap_base + 1)));
   frf->_unique_cells_base = (uint32_t *)((char *)mmap_base + ntohl(*(mmap_base + 2)));
   frf->_vector_base       = (uint32_t *)((char *)mmap_base + ntohl(*(mmap_base + 3)));
+  frf->_malloc_context    = frf_malloc_context_new(1024);
 
   frf->_row_ptr = frf->_vector_base;
 
@@ -56,6 +62,7 @@ frf_t * frf_new(char * file_name)
 
 void frf_destroy(frf_t * frf)
 {
+  frf_malloc_context_destroy(frf->_malloc_context);
   free(frf);
   return;
 }
@@ -73,6 +80,9 @@ int _frf_iovec(frf_t * frf, struct iovec * iov)
   }
 
   int i;
+
+  union uint32_t2char converter = { 0 };
+  char * buf;
   
   uint32_t unique_cell_offset;
 
@@ -98,16 +108,33 @@ int _frf_iovec(frf_t * frf, struct iovec * iov)
       index = ntohl(*vec_ptr);
       vec_ptr++;
     }
-    index--;
 
-    len = *(string_table_base + index);
+    if (index & (1 << 31)) {
+      index -= (1 << 31);
 
-    if (len & FRF_HIGH_BIT) {
-      iov[i].iov_len  = ntohl(*((uint32_t *)(string_table_base + index))) - FRF_LARGE_MASK;
-      iov[i].iov_base = string_table_base + index + 4;
+      converter.ui = index;
+
+      buf = frf_malloc(frf->_malloc_context, 5);
+      buf[0] = converter.chars[3];
+      buf[1] = converter.chars[2];
+      buf[2] = converter.chars[1];
+      buf[3] = converter.chars[0];
+      buf[4] = '\0';
+
+      iov[i].iov_len  = strlen(buf);
+      iov[i].iov_base = buf;
     } else {
-      iov[i].iov_len  = *(string_table_base + index);
-      iov[i].iov_base = string_table_base + index + 1;
+      index--;
+
+      len = *(string_table_base + index);
+
+      if (len & FRF_HIGH_BIT) {
+	iov[i].iov_len  = ntohl(*((uint32_t *)(string_table_base + index))) - FRF_LARGE_MASK;
+	iov[i].iov_base = string_table_base + index + 4;
+      } else {
+	iov[i].iov_len  = *(string_table_base + index);
+	iov[i].iov_base = string_table_base + index + 1;
+      }
     }
 
     cell_ptr++;
@@ -119,6 +146,8 @@ int _frf_iovec(frf_t * frf, struct iovec * iov)
 ssize_t frf_write(frf_t * frf, int fd)
 {
   static struct iovec iov[IOV_MAX];
+
+  frf->_malloc_context = frf_malloc_context_reset(frf->_malloc_context);
 
   int iov_cnt = _frf_iovec(frf, iov);
 
@@ -147,6 +176,8 @@ int frf_get_render_size(frf_t * frf)
 {
   static struct iovec iov[IOV_MAX];
 
+  frf->_malloc_context = frf_malloc_context_reset(frf->_malloc_context);
+
   int iov_cnt = _frf_iovec(frf, iov);
   int i;
 
@@ -171,6 +202,8 @@ int frf_seek(frf_t * frf, uint32_t offset)
 int frf_render_to_buffer(frf_t * frf, char * buf, int buf_size)
 {
   static struct iovec iov[IOV_MAX];
+
+  frf->_malloc_context = frf_malloc_context_reset(frf->_malloc_context);
 
   int iov_cnt = _frf_iovec(frf, iov);
   int i;

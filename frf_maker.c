@@ -6,6 +6,11 @@
 #define FRF_MAKER_MAIN_BUFFER_SIZE 1024
 #define FRF_MAKER_STR_BUFFER_SIZE  10000000
 
+union uint32_t2char {
+  uint32_t ui;
+  char chars[5];
+};
+
 static frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
 {
   frf_maker_str2ui_t * p13n_lookup, * p13n_node;
@@ -107,6 +112,19 @@ static uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * st
   char * buf;
   uint32_t long_len;
   uint32_t rval;
+  int i;
+
+  union uint32_t2char converter = { 0 };
+
+  if (len < 5) {
+    for (i = 0; i < len; i++) {
+      converter.chars[(4 - len) + i] = str[len - i - 1];
+    }
+
+    converter.ui |= (1 << 31);
+
+    return converter.ui;
+  }
 
   if (frf_maker->str_malloc_context->used > frf_maker->str_malloc_context_size) {
     frf_maker->str_malloc_context = frf_malloc_context_reset(frf_maker->str_malloc_context);

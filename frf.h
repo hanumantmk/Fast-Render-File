@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include "frf_malloc.h"
 
 typedef struct frf {
   char     * file_name;
@@ -24,6 +25,8 @@ typedef struct frf {
 
   uint32_t * _row_ptr;
   uint32_t * _end;
+
+  frf_malloc_context_t * _malloc_context;
 } frf_t;
 
 int frf_init(frf_t * frf, char * file_name);
