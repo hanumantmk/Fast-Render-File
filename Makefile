@@ -18,20 +18,20 @@ libfrf.a: $(LIBS)
 	ar rcs $@ $^
 
 test.frf: data/content.json data/p13n.txt make_frf frf_transform_base.so
-	./make_frf data/content.json test.frf data/p13n.txt
+	./make_frf -c data/content.json -o test.frf -p data/p13n.txt
 
 test_huge: make_frf
-	time -p ./make_frf data/content.json huge.frf data/huge_p13n.txt
+	time -p ./make_frf -c data/content.json -o huge.frf -p data/huge_p13n.txt
 
 valgrind_write: test.frf make_frf
-	valgrind --leak-check=yes ./make_frf data/content.json test.frf data/p13n.txt
+	valgrind --leak-check=yes ./make_frf -c data/content.json -o test.frf -p data/p13n.txt
 
 valgrind_read: test.frf render
-	valgrind --leak-check=yes ./render test.frf > /dev/null
+	valgrind --leak-check=yes ./render -wa test.frf > /dev/null
 
 test: frf_transform_base.so render stat test.frf
-	time ./render test.frf > /dev/null
-	./render test.frf seek `./render test.frf get_offset 10` | grep -c oxto0@0x2fp.net
+	time ./render -wa test.frf > /dev/null
+	./render -w test.frf --seek_offset `./render test.frf --get_offset --seek_row 10` | grep -c oxto0@0x2fp.net
 	./stat test.frf
 
 clean:

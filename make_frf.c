@@ -5,7 +5,54 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <argp.h>
 #include "utstring.h"
+
+const char * argp_program_version = "make_frf 1.0";
+const char * argp_program_bug_address = "jcarey@whoissunday.com";
+
+struct arguments {
+  char * content;
+  char * output;
+  char * p13n;
+
+  char * make_cdb;
+};
+
+static struct argp_option options[] = {
+  { "content",  'c', "CONTENT_FILE", 0,                   "the content file to template with" },
+  { "output",   'o', "OUTPUT_fILE",  0,                   "the output filename for the frf" },
+  { "p13n",     'p', "P13N_FILE",    0,                   "the output p13n file" },
+  { "make_cdb", 'm', "KEY_OFFSET",   OPTION_ARG_OPTIONAL, "make a cdb off of the given field from p13n" },
+  { 0 }
+};
+
+static error_t parse_opt(int key, char * arg, struct argp_state * state) {
+  struct arguments * arguments = state->input;
+
+  switch (key) {
+    case 'c':
+      arguments->content = arg;
+      break;
+    case 'o':
+      arguments->output = arg;
+      break;
+    case 'p':
+      arguments->p13n = arg;
+      break;
+    case 'm':
+      arguments->make_cdb = arg;
+      break;
+    default:
+      return ARGP_ERR_UNKNOWN;
+  }
+
+  return 0;
+}
+
+static char args_doc[] = "";
+static char doc[] = "make_frf -- a program to create frf files";
+static struct argp argp = { options, parse_opt, args_doc, doc };
 
 int main (int argc, char ** argv)
 {
@@ -31,18 +78,21 @@ int main (int argc, char ** argv)
 
   FILE * fp;
 
-  frf_maker = frf_maker_new(argv[1], argv[2]);
+  struct arguments arguments = { 0 };
+  argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-  fp = fopen(argv[3], "r");
+  frf_maker = frf_maker_new(arguments.content, arguments.output);
 
-  if (argc == 5) {
+  fp = fopen(arguments.p13n, "r");
+
+  if (arguments.make_cdb) {
     utstring_new(tempfile);
     utstring_new(str);
 
-    utstring_printf(tempfile, "%s.cdb.temp", argv[2]);
+    utstring_printf(tempfile, "%s.cdb.temp", arguments.output);
     cdb_fd = open(utstring_body(tempfile), O_RDWR | O_CREAT);
     cdb_make_start(&cdbm, cdb_fd);
-    p13n_pk = atoi(argv[4]);
+    p13n_pk = atoi(arguments.make_cdb);
   }
 
   while ((read = (getline(&line, &len, fp))) != -1) {
@@ -65,7 +115,7 @@ int main (int argc, char ** argv)
 
     value = frf_maker_add(frf_maker, p13n);
 
-    if (argc == 5) {
+    if (arguments.make_cdb) {
       utstring_clear(str);
       utstring_printf(str, "%d", value);
       klen = strlen(key);
@@ -78,10 +128,10 @@ int main (int argc, char ** argv)
 
   frf_maker_finish(frf_maker);
 
-  if (argc == 5) {
+  if (arguments.make_cdb) {
     cdb_make_finish(&cdbm);
     utstring_clear(str);
-    utstring_printf(str, "%s.cdb", argv[2]);
+    utstring_printf(str, "%s.cdb", arguments.output);
     rename(utstring_body(tempfile), utstring_body(str));
 
     utstring_free(tempfile);
