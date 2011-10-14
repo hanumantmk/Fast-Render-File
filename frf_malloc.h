@@ -11,6 +11,7 @@
 typedef struct frf_malloc_context {
   char * buf;
   char * buf_ptr;
+  char * end;
   size_t size;
   size_t used;
   struct frf_malloc_context * next, * prev;

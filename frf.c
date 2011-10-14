@@ -5,7 +5,7 @@
 
 union uint32_t2char {
   uint32_t ui;
-  char chars[5];
+  char chars[4];
 };
 
 int frf_init(frf_t * frf, char * file_name)

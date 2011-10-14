@@ -8,7 +8,7 @@
 
 union uint32_t2char {
   uint32_t ui;
-  char chars[5];
+  char chars[4];
 };
 
 static frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)

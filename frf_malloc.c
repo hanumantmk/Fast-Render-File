@@ -6,6 +6,7 @@ frf_malloc_context_t * frf_malloc_context_new(size_t size)
 
   c->buf_ptr = c->buf = malloc(size);
   c->size = size;
+  c->end = c->buf + size;
   c->used = 0;
 
   c->next = NULL;
@@ -71,7 +72,11 @@ void * frf_malloc(frf_malloc_context_t * c, size_t size)
 
   tail = c->prev;
 
-  if ((tail->buf_ptr + size) > (tail->buf + tail->size)) {
+  rval = tail->buf_ptr;
+
+  tail->buf_ptr += size;
+
+  if (tail->buf_ptr > tail->end) {
     new_size = tail->size * 2;
 
     if (new_size < size) {
@@ -80,14 +85,14 @@ void * frf_malloc(frf_malloc_context_t * c, size_t size)
     new_context = malloc(sizeof(frf_malloc_context_t));
     new_context->buf_ptr = new_context->buf = malloc(new_size);
     new_context->size = new_size;
+    new_context->end = new_context->buf_ptr + new_size;
     DL_APPEND(c, new_context);
 
-    tail = c->prev;
+    rval = new_context->buf_ptr;
   }
 
-  rval = tail->buf_ptr;
-  tail->buf_ptr += size;
   c->used += size;
+
   return rval;
 }
 
