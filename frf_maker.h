@@ -102,6 +102,7 @@ typedef struct frf_maker {
   FILE * unique_cells_fh;
   uint32_t unique_cells_written;
   FILE * vector_fh;
+  uint32_t vector_written;
   FILE * header_fh;
 
   uint32_t num_rows;

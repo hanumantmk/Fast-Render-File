@@ -140,7 +140,7 @@ int frf_next(frf_t * frf)
 
 uint32_t frf_get_offset(frf_t * frf)
 {
-  return (char *)(frf->_row_ptr) - (char *)(frf->_mmap_base);
+  return (char *)(frf->_row_ptr) - (char *)(frf->_vector_base);
 }
 
 int frf_get_render_size(frf_t * frf)
@@ -161,7 +161,7 @@ int frf_get_render_size(frf_t * frf)
 
 int frf_seek(frf_t * frf, uint32_t offset)
 {
-  if ((frf->_row_ptr = ((uint32_t *)(((char *)frf->_mmap_base) + offset))) >= frf->_end) {
+  if ((frf->_row_ptr = ((uint32_t *)(((char *)frf->_vector_base) + offset))) >= frf->_end) {
     return -1;
   } else {
     return 0;

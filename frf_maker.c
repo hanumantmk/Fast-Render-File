@@ -347,6 +347,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   utstring_clear(str);
   utstring_printf(str, "%s.v", output_file_name);
   frf_maker->vector_fh = fopen(utstring_body(str), "w");
+  frf_maker->vector_written = 0;
 
   utstring_clear(str);
   utstring_printf(str, "%s.h", output_file_name);
@@ -554,6 +555,8 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
 
   int cells_cnt = 0, vector_cnt = 0;
 
+  int rval = frf_maker->vector_written;
+
   char * dt_result;
 
   frf_malloc_context_t * c;
@@ -628,7 +631,9 @@ ALL_ADD: case FRF_MAKER_CC_TYPE_STATIC:
     fwrite(&vector_offset, 4, 1, frf_maker->vector_fh);
   }
 
+  frf_maker->vector_written += 4 * (vector_cnt + 1);
+
   frf_maker->num_rows++;
 
-  return 1;
+  return rval;
 }
