@@ -577,9 +577,10 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
 
   char * dt_result;
 
-  frf_malloc_context_t * c;
+  frf_malloc_context_t * c, * dt_c;
 
   c = frf_maker->malloc_context = frf_malloc_context_reset(frf_maker->malloc_context);
+  dt_c = frf_malloc_sub_context_new(c, 1024);
 
   frf_maker_cc_t * stack_elt = frf_maker_compile(frf_maker, frf_maker->content);
   frf_maker_cc_t * stack_temp;
@@ -599,7 +600,8 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
         vector_cnt++;
         vector_temp = frf_malloc(c, sizeof(frf_maker_vector_t));
 
-	dt_result = frf_transform_exec(frf_maker->malloc_context, stack_elt->val.exp, p13n);
+        dt_c = frf_malloc_context_reset(dt_c);
+	dt_result = frf_transform_exec(dt_c, stack_elt->val.exp, p13n);
 	
         vector_temp->offset = frf_maker_add_to_string_table(frf_maker, dt_result, strlen(dt_result));
 
