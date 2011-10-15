@@ -11,6 +11,30 @@ union uint32_t2char {
   char chars[4];
 };
 
+static frf_maker_str2str_t * make_macro_lookup(json_t * macros)
+{
+  frf_maker_str2str_t * macro_lookup = NULL, * macro_node;
+
+  const char * key, * value;
+
+  void * iter = json_object_iter(macros);
+
+  while(iter) {
+    key = json_object_iter_key(iter);
+    value = json_string_value(json_object_iter_value(iter));
+
+    macro_node = malloc(sizeof(frf_maker_str2str_t));
+    macro_node->str = strdup(key);
+    macro_node->val = strdup(value);
+
+    HASH_ADD_KEYPTR(hh, macro_lookup, macro_node->str, strlen(key), macro_node);
+
+    iter = json_object_iter_next(macros, iter);
+  }
+
+  return macro_lookup;
+}
+
 static frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
 {
   frf_maker_str2ui_t * p13n_lookup, * p13n_node;
@@ -234,6 +258,11 @@ static void frf_maker_precompile(frf_maker_t * frf_maker, frf_maker_content_t * 
   int ovector[9];
   int read = 0;
 
+  char * key;
+  int key_len;
+
+  frf_maker_str2str_t * macro_node;
+
   frf_maker_cc_t * cc_head = NULL, * cc_temp;
 
   if (! content->is_compiled) {
@@ -244,11 +273,20 @@ static void frf_maker_precompile(frf_maker_t * frf_maker, frf_maker_content_t * 
 	DL_APPEND(cc_head, cc_temp);
       }
 
-      if ((cc_temp = frf_maker_make_p13n_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
+      key     = c + ovector[4];
+      key_len = ovector[5] - ovector[4];
+
+      HASH_FIND(hh, frf_maker->macro_lookup, key, key_len, macro_node);
+      if (macro_node) {
+	key = macro_node->val;
+	key_len = strlen(key);
+      }
+
+      if ((cc_temp = frf_maker_make_p13n_cell(frf_maker, key, key_len))) {
 	DL_APPEND(cc_head, cc_temp);
-      } else if ((cc_temp = frf_maker_make_dc_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
+      } else if ((cc_temp = frf_maker_make_dc_cell(frf_maker, key, key_len))) {
 	DL_APPEND(cc_head, cc_temp);
-      } else  if ((cc_temp = frf_maker_make_dt_cell(frf_maker, c + ovector[4], ovector[5] - ovector[4]))) {
+      } else  if ((cc_temp = frf_maker_make_dt_cell(frf_maker, key, key_len))) {
 	DL_APPEND(cc_head, cc_temp);
       }
 
@@ -304,7 +342,7 @@ frf_maker_t * frf_maker_new(char * content_file_name, char * output_file_name)
 int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * output_file_name)
 {
   json_t * root;
-  json_t * p13n_json = NULL, * dc_json = NULL;
+  json_t * p13n_json = NULL, * dc_json = NULL, * macros = NULL;
   json_error_t json_error;
   char * body = NULL;
   char * dt_file = NULL;
@@ -326,7 +364,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   }
 
   frf_maker->content_file_name = content_file_name;
-  if (json_unpack_ex(root, &json_error, 0, "{s:s, s:o, s:o, s:s}", "body", &body, "p13n", &p13n_json, "dc", &dc_json, "dt", &dt_file) < 0) {
+  if (json_unpack_ex(root, &json_error, 0, "{s:s, s:o, s:o, s:s, s:o}", "body", &body, "p13n", &p13n_json, "dc", &dc_json, "dt", &dt_file, "macros", &macros) < 0) {
     error(1, 0, "Couldn't unpack json: %s", json_error.text);
   }
 
@@ -377,6 +415,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->content->content = strndup(body, strlen(body));
   frf_maker->p13n_lookup = make_p13n_lookup(p13n_json);
   frf_maker->dc_lookup = make_dc_lookup(frf_maker, dc_json);
+  frf_maker->macro_lookup = make_macro_lookup(macros);
   frf_maker_precompile(frf_maker, frf_maker->content);
 
   utstring_free(str);
@@ -492,6 +531,11 @@ static void frf_maker_destroy_cc(frf_maker_cc_t * cc)
 
   DL_FOREACH_SAFE(cc, cur, temp) {
     DL_DELETE(cc, cur);
+
+    if (cur->type == FRF_MAKER_CC_TYPE_DT) {
+      frf_transform_destroy(cur->val.exp);
+    }
+
     free(cur);
   }
 }
@@ -528,6 +572,18 @@ static void frf_maker_destroy_str2dc(frf_maker_str2dc_t * str2dc)
   }
 }
 
+static void frf_maker_destroy_str2str(frf_maker_str2str_t * str2str)
+{
+  frf_maker_str2str_t * entry, * temp;
+
+  HASH_ITER(hh, str2str, entry, temp) {
+    HASH_DELETE(hh, str2str, entry);
+    free(entry->str);
+    free(entry->val);
+    free(entry);
+  }
+}
+
 static void frf_maker_destroy_str2ui(frf_maker_str2ui_t * str2ui)
 {
   frf_maker_str2ui_t * entry, * temp;
@@ -556,6 +612,7 @@ void frf_maker_destroy(frf_maker_t * frf_maker)
   frf_maker_destroy_ui2ui(frf_maker->uniq_cells_lookup);
   frf_maker_destroy_str2ui(frf_maker->p13n_lookup);
   frf_maker_destroy_str2dc(frf_maker->dc_lookup);
+  frf_maker_destroy_str2str(frf_maker->macro_lookup);
   frf_malloc_context_destroy(frf_maker->malloc_context);
   frf_malloc_context_destroy(frf_maker->str_malloc_context);
   pcre_free(frf_maker->content_re);

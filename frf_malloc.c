@@ -61,10 +61,10 @@ char * frf_transform_printf(frf_malloc_context_t * c, const char * format, ...)
   char * out;
 
   va_start(args, format);
-  len = vsnprintf(NULL, 0, format, args);
+  len = vsnprintf(NULL, 0, format, args) + 1;
   va_end(args);
 
-  out = frf_malloc(c, len + 1);
+  out = frf_malloc(c, len);
 
   va_start(args, format);
   vsnprintf(out, len, format, args);

@@ -28,6 +28,13 @@ typedef struct frf_maker_ui2ui {
   UT_hash_handle hh;
 } frf_maker_ui2ui_t ;
 
+typedef struct frf_maker_str2str {
+  char * str;
+  char * val;
+
+  UT_hash_handle hh;
+} frf_maker_str2str_t;
+
 typedef struct frf_maker_str2ui {
   char * str;
   uint32_t offset;
@@ -88,6 +95,7 @@ typedef struct frf_maker {
 
   frf_maker_str2ui_t * strings_lookup;
   frf_maker_ui2ui_t * uniq_cells_lookup;
+  frf_maker_str2str_t * macro_lookup;
 
   pcre * content_re;
 

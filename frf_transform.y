@@ -137,6 +137,29 @@ void frf_transform_pp_expression(frf_transform_exp_t * e)
   }
 }
 
+void frf_transform_destroy(frf_transform_exp_t * e)
+{
+  frf_transform_arg_t * a, * temp;
+
+  if (e->type == EXP_TYPE_FUNC) {
+    DL_FOREACH_SAFE(e->val.f->args, a, temp) {
+      DL_DELETE(e->val.f->args, a);
+      frf_transform_destroy(a->exp);
+      free(a);
+    }
+
+    free(e->val.f->name);
+    free(e->val.f);
+  } else if (e->type == EXP_TYPE_P13N) {
+    free(e->val.p->name);
+    free(e->val.p);
+  } else {
+    free(e->val.s);
+  }
+
+  free(e);
+}
+
 void frf_transform_pp(frf_transform_exp_t * e)
 {
   frf_transform_pp_expression(e);
