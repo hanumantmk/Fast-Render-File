@@ -59,8 +59,17 @@ typedef struct frf_maker_cc {
     struct frf_maker_str2dc * dc;
   } val;
 
+  int value_index;
+
   struct frf_maker_cc * next, * prev;
 } frf_maker_cc_t;
+
+typedef struct frf_maker_str2cc {
+  char * str;
+  frf_maker_cc_t * cc;
+
+  UT_hash_handle hh;
+} frf_maker_str2cc_t;
 
 typedef struct frf_maker_content {
   int is_compiled;
@@ -96,6 +105,9 @@ typedef struct frf_maker {
   frf_maker_str2ui_t * strings_lookup;
   frf_maker_ui2ui_t * uniq_cells_lookup;
   frf_maker_str2str_t * macro_lookup;
+
+  frf_maker_str2cc_t * tag_lookup;
+  int num_uniq_tags;
 
   pcre * content_re;
 
