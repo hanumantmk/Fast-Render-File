@@ -40,7 +40,7 @@ static frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
   frf_maker_str2ui_t * p13n_lookup, * p13n_node;
   p13n_lookup = NULL;
 
-  int i;
+  uint32_t i;
   char * key;
 
   for (i = 0; i < json_array_size(p13n_json); i++) {
@@ -136,7 +136,7 @@ static uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * st
   char * buf;
   uint32_t long_len;
   uint32_t rval;
-  int i;
+  uint32_t i;
 
   char chars[4] = { 0 };
   uint32_t ui_temp;
@@ -272,7 +272,7 @@ static void frf_maker_precompile(frf_maker_t * frf_maker, frf_maker_content_t * 
   int read = 0;
 
   char * key, * mkey;
-  int key_len, mkey_len;
+  uint32_t key_len, mkey_len;
 
   frf_maker_str2str_t * macro_node;
   frf_maker_str2cc_t * tag_node;
@@ -462,7 +462,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   return 0;
 }
 
-static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_t * cells, int cells_cnt, frf_maker_vector_t * vector, int vector_cnt)
+static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_t * cells, int cells_cnt, int vector_cnt)
 {
   uint32_t rval, temp;
 
@@ -766,7 +766,7 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
     }
   }
 
-  uniq_vector_offset = htonl(frf_maker_add_uniq_vector(frf_maker, cells_head, cells_cnt, vector_head, vector_cnt));
+  uniq_vector_offset = htonl(frf_maker_add_uniq_vector(frf_maker, cells_head, cells_cnt, vector_cnt));
 
   fwrite(&uniq_vector_offset, 4, 1, frf_maker->vector_fh);
 

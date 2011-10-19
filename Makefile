@@ -5,6 +5,7 @@ LFLAGS = -ljansson -lpcre -ldl -lcdb
 #CFLAGS += -lprofiler
 #CFLAGS += -O3 -DNDEBUG
 CFLAGS += -ggdb3 -Wall
+#CFLAGS += -Wextra
 CFLAGS += -O0
 
 default: $(TARGETS) frf_transform_base.so libfrf.a

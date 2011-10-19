@@ -21,7 +21,7 @@ int frf_init(frf_t * frf, char * file_name)
     size = sb.st_size;
   }
 
-  if ((mmap_base = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0)) < 0) {
+  if ((mmap_base = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0)) == (void *)-1) {
     return 1;
   }
 
