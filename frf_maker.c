@@ -3,7 +3,7 @@
 #include <assert.h>
 
 #define FRF_MAKER_MAIN_BUFFER_SIZE (1 << 10)
-#define FRF_MAKER_STR_BUFFER_SIZE  (1 << 16)
+#define FRF_MAKER_STR_BUFFER_SIZE  (1 << 24)
 
 #ifndef NDEBUG
 #define ASSERT_INDEX(index) assert((index) & (1<<31) || (index) <= (frf_maker->string_table_written));
@@ -132,7 +132,7 @@ static frf_maker_str2dc_t * make_dc_lookup(frf_maker_t * frf_maker, json_t * dc_
 #undef uthash_malloc
 #undef uthash_free
 #define uthash_malloc(sz) frf_malloc(frf_maker->str_malloc_context, sz)
-#define uthash_free(ptr, sz) 0
+#define uthash_free(ptr, sz)
 
 static uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * str, uint32_t len)
 {

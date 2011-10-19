@@ -1,14 +1,21 @@
 #include "frf_malloc.h"
 #include <stdint.h>
 
+#define FRF_MALLOC_ALIGNMENT_SIZE (sizeof(void *) * 2)
+
 frf_malloc_context_t * frf_malloc_context_new(size_t size)
 {
   frf_malloc_context_t * c = malloc(sizeof(*c));
 
-  c->buf_ptr = c->buf = malloc(size);
+  if (size < FRF_MALLOC_ALIGNMENT_SIZE * 2) {
+    size = FRF_MALLOC_ALIGNMENT_SIZE * 2;
+  }
+
+  c->buf = malloc(size);
+  c->buf_ptr = c->buf + FRF_MALLOC_ALIGNMENT_SIZE - sizeof(size_t);
   c->size = size;
   c->end = c->buf + size;
-  c->used = 0;
+  c->used = FRF_MALLOC_ALIGNMENT_SIZE - sizeof(size_t);
 
   c->next = NULL;
   c->prev = c;
@@ -95,6 +102,7 @@ void * frf_malloc(frf_malloc_context_t * c, size_t size)
   size_t new_size;
 
   size += sizeof(size_t);
+  size += FRF_MALLOC_ALIGNMENT_SIZE - (size % FRF_MALLOC_ALIGNMENT_SIZE);
 
   tail = c->prev;
 
@@ -105,20 +113,21 @@ void * frf_malloc(frf_malloc_context_t * c, size_t size)
   if (tail->buf_ptr > tail->end) {
     new_size = tail->size * 2;
 
-    if (new_size < size) {
-      new_size = size * 2;
+    if (new_size < FRF_MALLOC_ALIGNMENT_SIZE + size) {
+      new_size = FRF_MALLOC_ALIGNMENT_SIZE + size * 2;
     }
 
     new_context = malloc(sizeof(*new_context));
     assert(new_context);
-    new_context->buf_ptr = new_context->buf = malloc(new_size);
-    assert(new_context->buf_ptr);
+    new_context->buf = malloc(new_size);
+    assert(new_context->buf);
+    new_context->buf_ptr = new_context->buf + FRF_MALLOC_ALIGNMENT_SIZE - sizeof(size_t);
 
     new_context->size = new_size;
-    new_context->end = new_context->buf_ptr + new_size;
+    new_context->end = new_context->buf + new_size;
     DL_APPEND(c, new_context);
 
-    rval = new_context->buf;
+    rval = new_context->buf_ptr;
     new_context->buf_ptr += size;
   }
 
@@ -128,15 +137,14 @@ void * frf_malloc(frf_malloc_context_t * c, size_t size)
 
   *size_ptr = size - sizeof(size_t); 
 
+  // verify that we always return aligned pointers
+  assert(! ((char)(rval + sizeof(size_t)) % FRF_MALLOC_ALIGNMENT_SIZE));
+
   return rval + sizeof(size_t);
 }
 
 frf_malloc_context_t * frf_malloc_context_reset(frf_malloc_context_t * c) {
   frf_malloc_context_t * elt, * temp, * tail;
-
-  if (! (c->next || c->used)) {
-    return c;
-  }
 
   tail = c->prev;
 
@@ -147,10 +155,10 @@ frf_malloc_context_t * frf_malloc_context_reset(frf_malloc_context_t * c) {
     free(elt->buf);
     free(elt);
   }
-  tail->buf_ptr = tail->buf;
+  tail->buf_ptr = tail->buf + FRF_MALLOC_ALIGNMENT_SIZE - sizeof(size_t);
   tail->next = NULL;
   tail->prev = tail;
-  tail->used = 0;
+  tail->used = FRF_MALLOC_ALIGNMENT_SIZE - sizeof(size_t);
 
   return tail;
 }
