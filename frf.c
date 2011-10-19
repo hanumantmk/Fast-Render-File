@@ -3,11 +3,6 @@
 #define FRF_HIGH_BIT   (1 << 7)
 #define FRF_LARGE_MASK (1 << 31)
 
-union uint32_t2char {
-  uint32_t ui;
-  char chars[4];
-};
-
 int frf_init(frf_t * frf, char * file_name)
 {
   uint32_t * mmap_base;
@@ -81,8 +76,9 @@ int _frf_iovec(frf_t * frf, struct iovec * iov)
 
   int i;
 
-  union uint32_t2char converter = { 0 };
   char * buf;
+
+  char chars[4] = { 0 };
   
   uint32_t unique_cell_offset;
 
@@ -102,29 +98,29 @@ int _frf_iovec(frf_t * frf, struct iovec * iov)
   vec_ptr++;
 
   for (i = 0; i < num_elements; i++) {
-    index = ntohl(*cell_ptr);
+    index = *cell_ptr;
 
     if (! index) {
-      index = ntohl(*vec_ptr);
+      index = *vec_ptr;
       vec_ptr++;
     }
 
-    if (index & (1 << 31)) {
-      index -= (1 << 31);
+    memcpy(chars, &index, 4);
 
-      converter.ui = index;
+    if (chars[0] & (1 << 7)) {
+      chars[0] -= (1 << 7);
 
       buf = frf_malloc(frf->_malloc_context, 5);
-      buf[0] = converter.chars[3];
-      buf[1] = converter.chars[2];
-      buf[2] = converter.chars[1];
-      buf[3] = converter.chars[0];
+      buf[0] = chars[3];
+      buf[1] = chars[2];
+      buf[2] = chars[1];
+      buf[3] = chars[0];
       buf[4] = '\0';
 
       iov[i].iov_len  = strlen(buf);
       iov[i].iov_base = buf;
     } else {
-      index--;
+      index = ntohl(index) - 1;
 
       len = *(string_table_base + index);
 

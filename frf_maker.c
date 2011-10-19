@@ -6,15 +6,10 @@
 #define FRF_MAKER_STR_BUFFER_SIZE  (1 << 24)
 
 #ifndef NDEBUG
-#define ASSERT_INDEX(index) assert((index) & (1<<31) || (index) <= (frf_maker->string_table_written));
+#define ASSERT_INDEX(index) assert(((char *)(&(index)))[0] & (1<<7) || ntohl(index) <= (frf_maker->string_table_written));
 #else
-#define ASSERT_INDEX(index) 0
+#define ASSERT_INDEX(index)
 #endif
-
-union uint32_t2char {
-  uint32_t ui;
-  char chars[4];
-};
 
 static frf_maker_str2str_t * make_macro_lookup(json_t * macros)
 {
@@ -136,23 +131,25 @@ static frf_maker_str2dc_t * make_dc_lookup(frf_maker_t * frf_maker, json_t * dc_
 
 static uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * str, uint32_t len)
 {
-  frf_maker_str2ui_t * temp;
+  frf_maker_str2ui_t * temp = NULL;
   char short_len;
   char * buf;
   uint32_t long_len;
   uint32_t rval;
   int i;
 
-  union uint32_t2char converter = { 0 };
+  char chars[4] = { 0 };
+  uint32_t ui_temp;
 
   if (len < 5) {
     for (i = 0; i < len; i++) {
-      converter.chars[(4 - len) + i] = str[len - i - 1];
+      chars[(4 - len) + i] = str[len - i - 1];
     }
+    chars[0] |= (1 << 7);
 
-    converter.ui |= (1 << 31);
+    memcpy(&ui_temp, chars, 4);
 
-    return converter.ui;
+    return ui_temp;
   }
 
   if (frf_maker->str_malloc_context->used > frf_maker->str_malloc_context_size) {
@@ -160,15 +157,22 @@ static uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * st
     frf_maker->strings_lookup = NULL;
   }
 
-  HASH_FIND(hh, frf_maker->strings_lookup, str, len, temp);
+  if (len < (1 << 7)) {
+    HASH_FIND(hh, frf_maker->strings_lookup, str, len, temp);
+  }
 
   if (temp) {
     rval = temp->offset;
   } else {
-    temp = frf_malloc(frf_maker->str_malloc_context, sizeof(*temp));
-    temp->str = buf = frf_strndup(frf_maker->str_malloc_context, str, len);
-    temp->offset = frf_maker->string_table_written;
-    HASH_ADD_KEYPTR(hh, frf_maker->strings_lookup, buf, len, temp);
+    if (len < (1 << 7)) {
+      temp = frf_malloc(frf_maker->str_malloc_context, sizeof(*temp));
+      temp->str = buf = frf_strndup(frf_maker->str_malloc_context, str, len);
+      temp->offset = frf_maker->string_table_written;
+
+      HASH_ADD_KEYPTR(hh, frf_maker->strings_lookup, buf, len, temp);
+    } else {
+      buf = str;
+    }
 
     rval = frf_maker->string_table_written;
     if (len < (1 << 7)) {
@@ -184,7 +188,7 @@ static uint32_t frf_maker_add_to_string_table(frf_maker_t * frf_maker, char * st
     }
   }
 
-  return rval;
+  return htonl(rval);
 }
 
 #undef uthash_malloc
@@ -511,11 +515,11 @@ static uint32_t frf_maker_add_uniq_vector(frf_maker_t * frf_maker, frf_maker_cc_
 
     DL_FOREACH(cells, elt) {
       if (elt->type == FRF_MAKER_CC_TYPE_STATIC) {
-	temp = htonl(elt->val.offset);
+	temp = elt->val.offset;
       } else {
-	temp = htonl(0);
+	temp = 0;
       }
-      ASSERT_INDEX(ntohl(temp));
+      ASSERT_INDEX(temp);
       fwrite(&temp, 4, 1, frf_maker->unique_cells_fh);
       frf_maker->unique_cells_written += 4;
     }
@@ -674,9 +678,9 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
 
   frf_maker_cc_t * cells_head = NULL, * cells_temp;
   frf_maker_vector_t * vector_head = NULL, * vector_temp, * vector_current;
-  uint32_t uniq_vector_offset, vector_offset, result;
+  uint32_t uniq_vector_offset, result;
 
-  uint32_t * results;
+  uint32_t * results, * new_results;
 
   int cells_cnt = 0, vector_cnt = 0;
 
@@ -708,8 +712,9 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
       dc_tail = dc_elt = frf_maker_compile(frf_maker, dc_content);
 
       if (old_num_uniq_tags != frf_maker->num_uniq_tags) {
-	results = frf_realloc(c, results, sizeof(uint32_t) * frf_maker->num_uniq_tags);
-	memset((char *)results + (sizeof(uint32_t) * old_num_uniq_tags), 0, (frf_maker->num_uniq_tags - old_num_uniq_tags) * sizeof(uint32_t));
+	new_results = frf_malloc(c, sizeof(uint32_t) * frf_maker->num_uniq_tags);
+	memcpy(new_results, results, sizeof(uint32_t) * old_num_uniq_tags);
+	memset(results + old_num_uniq_tags, 0, (frf_maker->num_uniq_tags - old_num_uniq_tags) * sizeof(uint32_t));
       }
 
       while (dc_tail->next) {
@@ -768,8 +773,7 @@ int frf_maker_add(frf_maker_t * frf_maker, char ** p13n)
   DL_FOREACH(vector_head, vector_current) {
     ASSERT_INDEX(vector_current->offset);
 
-    vector_offset = htonl(vector_current->offset);
-    fwrite(&vector_offset, 4, 1, frf_maker->vector_fh);
+    fwrite(&(vector_current->offset), 4, 1, frf_maker->vector_fh);
   }
 
   frf_maker->vector_written += 4 * (vector_cnt + 1);
