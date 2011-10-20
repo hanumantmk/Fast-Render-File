@@ -77,7 +77,11 @@ void * frf_malloc(frf_malloc_context_t * c, size_t size)
   frf_malloc_context_t * new_context, * tail;
   size_t new_size;
 
-  size += FRF_MALLOC_ALIGNMENT_SIZE - (size % FRF_MALLOC_ALIGNMENT_SIZE);
+  uint32_t alignment_diff = size % FRF_MALLOC_ALIGNMENT_SIZE;
+
+  if (alignment_diff) {
+    size += FRF_MALLOC_ALIGNMENT_SIZE - alignment_diff;
+  }
 
   tail = c->prev;
 
