@@ -9,10 +9,11 @@
 
 %%
 [ \t] ;
-[a-zA-Z0-9_]+ {
-               yylval.str = strdup(yytext);
-               return STRING;
-             }
+
+L?\"(\\.|[^\\"])*\" { yylval.str = strdup(yytext + 1); yylval.str[strlen(yylval.str) - 1] = '\0';
+return STRING; }
+
+[a-zA-Z0-9_]+ { yylval.str = strdup(yytext); return IDENT; }
 
 \(           { return LEFT_PAREN; }
 \)           { return RIGHT_PAREN; }

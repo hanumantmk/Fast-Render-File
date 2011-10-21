@@ -42,7 +42,7 @@ char * frf_strndup(frf_malloc_context_t * c, char * str, size_t len)
   return out;
 }
 
-char * frf_transform_printf(frf_malloc_context_t * c, const char * format, ...)
+char * frf_printf(frf_malloc_context_t * c, const char * format, ...)
 {
   int len;
 

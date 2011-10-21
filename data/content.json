@@ -8,6 +8,7 @@
     "LNAME",
     "GENDER"
   ],
+  "cb" : "/home/jcarey/Git/fast_render/frf_callback.so",
   "macros" : {
     "TRACK" : "add(trunc(USER_PROF_ID, 5), 5)"
   },

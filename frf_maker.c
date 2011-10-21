@@ -35,6 +35,25 @@ static frf_maker_str2str_t * make_macro_lookup(json_t * macros)
   return macro_lookup;
 }
 
+static frf_maker_callback_t * frf_maker_make_callback(char * cb_file)
+{
+  frf_maker_callback_t * cb = malloc(sizeof(*cb));
+
+  void * sym_handle = dlopen(cb_file, RTLD_NOW | RTLD_NODELETE);
+  if (! sym_handle) {
+    error(1, 0, "Error in dlopen: %s\n", dlerror());
+  }
+
+  cb->static_cb      = dlsym(sym_handle, "FRF_CALLBACK_static_cb");
+  cb->tag_cb         = dlsym(sym_handle, "FRF_CALLBACK_tag_cb");
+  cb->malloc_context = frf_malloc_context_new(1024);
+  cb->data           = NULL;
+
+  dlclose(sym_handle);
+
+  return cb;
+}
+
 static frf_maker_str2ui_t * make_p13n_lookup(json_t * p13n_json)
 {
   frf_maker_str2ui_t * p13n_lookup, * p13n_node;
@@ -271,24 +290,41 @@ static void frf_maker_precompile(frf_maker_t * frf_maker, frf_maker_content_t * 
   int ovector[9];
   int read = 0;
 
-  char * key, * mkey;
-  uint32_t key_len, mkey_len;
+  char * key;
+  uint32_t key_len;
 
   frf_maker_str2str_t * macro_node;
   frf_maker_str2cc_t * tag_node;
 
   frf_maker_cc_t * cc_head = NULL, * cc_temp;
 
+  if (frf_maker->callback) {
+    frf_malloc_context_reset(frf_maker->callback->malloc_context);
+  }
+
   if (! content->is_compiled) {
     c = content->content;
 
     while ((rc = pcre_exec(frf_maker->content_re, NULL, c, strlen(c), read, 0, ovector, 9)) > 0) {
       if ((cc_temp = frf_maker_make_static_cell(frf_maker, c + ovector[2], ovector[3] - ovector[2]))) {
+	if (frf_maker->callback) {
+	  frf_maker->callback->static_cb(frf_maker->callback, c + ovector[2], ovector[3] - ovector[2]);
+	}
 	DL_APPEND(cc_head, cc_temp);
       }
 
       key     = c + ovector[4];
       key_len = ovector[5] - ovector[4];
+
+      HASH_FIND(hh, frf_maker->macro_lookup, key, key_len, macro_node);
+      if (macro_node) {
+	key = macro_node->val;
+	key_len = strlen(key);
+      }
+
+      if (frf_maker->callback) {
+	frf_maker->callback->tag_cb(frf_maker->callback, &key, &key_len);
+      }
 
       HASH_FIND(hh, frf_maker->tag_lookup, key, key_len, tag_node);
       if (tag_node) {
@@ -296,22 +332,13 @@ static void frf_maker_precompile(frf_maker_t * frf_maker, frf_maker_content_t * 
 	*cc_temp = *(tag_node->cc);
 	DL_APPEND(cc_head, cc_temp);
       } else {
-	HASH_FIND(hh, frf_maker->macro_lookup, key, key_len, macro_node);
-	if (macro_node) {
-	  mkey = macro_node->val;
-	  mkey_len = strlen(mkey);
-	} else {
-	  mkey = key;
-	  mkey_len = key_len;
-	}
-
 	cc_temp = NULL;
 
-	if ((cc_temp = frf_maker_make_p13n_cell(frf_maker, mkey, mkey_len))) {
+	if ((cc_temp = frf_maker_make_p13n_cell(frf_maker, key, key_len))) {
 	  DL_APPEND(cc_head, cc_temp);
-	} else if ((cc_temp = frf_maker_make_dc_cell(frf_maker, mkey, mkey_len))) {
+	} else if ((cc_temp = frf_maker_make_dc_cell(frf_maker, key, key_len))) {
 	  DL_APPEND(cc_head, cc_temp);
-	} else if ((cc_temp = frf_maker_make_dt_cell(frf_maker, mkey, mkey_len))) {
+	} else if ((cc_temp = frf_maker_make_dt_cell(frf_maker, key, key_len))) {
 	  DL_APPEND(cc_head, cc_temp);
 	}
 
@@ -380,6 +407,7 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   json_error_t json_error;
   char * body = NULL;
   char * dt_file = NULL;
+  char * cb_file = NULL;
 
   UT_string *str;
 
@@ -398,7 +426,14 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   }
 
   frf_maker->content_file_name = content_file_name;
-  if (json_unpack_ex(root, &json_error, 0, "{s:s, s:o, s:o, s:s, s:o}", "body", &body, "p13n", &p13n_json, "dc", &dc_json, "dt", &dt_file, "macros", &macros) < 0) {
+  if (json_unpack_ex(root, &json_error, 0, "{s:s, s:o, s:o, s:s, s:o, s:s}",
+    "body", &body,
+    "p13n", &p13n_json,
+    "dc", &dc_json,
+    "dt", &dt_file,
+    "macros", &macros,
+    "cb", &cb_file
+  ) < 0) {
     error(1, 0, "Couldn't unpack json: %s", json_error.text);
   }
 
@@ -407,6 +442,9 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
   frf_maker->content_re = content_re;
 
   frf_maker->sym_handle = dlopen(dt_file, RTLD_NOW);
+  if (! frf_maker->sym_handle) {
+    error(1, 0, "Error in dlopen: %s\n", dlerror());
+  }
 
   frf_maker->malloc_context = frf_malloc_context_new(FRF_MAKER_MAIN_BUFFER_SIZE);
 
@@ -422,6 +460,8 @@ int frf_maker_init(frf_maker_t * frf_maker, char * content_file_name, char * out
 
   frf_maker->tag_lookup = NULL;
   frf_maker->num_uniq_tags = 0;
+
+  frf_maker->callback = frf_maker_make_callback(cb_file);
 
   frf_maker->content = calloc(sizeof(*(frf_maker->content)), 1);
   frf_maker->num_rows = 0;
@@ -657,6 +697,12 @@ static void frf_maker_destroy_ui2ui(frf_maker_ui2ui_t * ui2ui)
   }
 }
 
+static void frf_maker_callback_destroy(frf_maker_callback_t * cb)
+{
+  frf_malloc_context_destroy(cb->malloc_context);
+  free(cb);
+}
+
 void frf_maker_destroy(frf_maker_t * frf_maker)
 {
   frf_maker_destroy_content(frf_maker->content);
@@ -667,6 +713,7 @@ void frf_maker_destroy(frf_maker_t * frf_maker)
   frf_maker_destroy_tag_lookup(frf_maker->tag_lookup);
   frf_malloc_context_destroy(frf_maker->malloc_context);
   frf_malloc_context_destroy(frf_maker->str_malloc_context);
+  frf_maker_callback_destroy(frf_maker->callback);
   pcre_free(frf_maker->content_re);
   free(frf_maker);
 }

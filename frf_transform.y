@@ -29,7 +29,7 @@ static frf_transform_exp_t * root;
 }
 
 %token LEFT_PAREN RIGHT_PAREN COMMA
-%token <str> STRING
+%token <str> STRING IDENT
 %type <args> list
 %type <f> func
 %type <exp> expression top
@@ -40,7 +40,7 @@ top:                    { root = NULL; }
 	   ;
 
 expression:
-	     STRING {
+	     IDENT {
 	       frf_transform_exp_t * a = calloc(sizeof(frf_transform_exp_t), 1);
 
 	       frf_maker_str2ui_t * t = NULL;
@@ -59,6 +59,13 @@ expression:
 
 	       $$ = a;
 	     }
+	   | STRING {
+	     frf_transform_exp_t * a = calloc(sizeof(frf_transform_exp_t), 1);
+	     a->val.s = $1;
+	     a->type = EXP_TYPE_STRING;
+	     $$ = a;
+
+	     }
 	   | func {
 	     frf_transform_exp_t * a = calloc(sizeof(frf_transform_exp_t), 1);
 	     a->val.f = $1;
@@ -68,7 +75,7 @@ expression:
 	   ;
 
 func:
-	     STRING LEFT_PAREN list RIGHT_PAREN {
+	     IDENT LEFT_PAREN list RIGHT_PAREN {
 	       UT_string * str;
 	       frf_transform_func_t * f = calloc(sizeof(frf_transform_func_t), 1);
 	       f->name = $1;

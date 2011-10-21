@@ -21,6 +21,13 @@ enum FRF_MAKER_CC_TYPE {
   FRF_MAKER_CC_TYPE_DT
 };
 
+typedef struct frf_maker_callback {
+  void (* static_cb)(struct frf_maker_callback *, char *, size_t);
+  void (* tag_cb)   (struct frf_maker_callback *, char **, size_t *);
+  frf_malloc_context_t * malloc_context;
+  void * data;
+} frf_maker_callback_t;
+
 typedef struct frf_maker_ui2ui {
   uint32_t * key;
   uint32_t offset;
@@ -114,6 +121,8 @@ typedef struct frf_maker {
   frf_malloc_context_t * malloc_context;
   frf_malloc_context_t * str_malloc_context;
   size_t str_malloc_context_size;
+
+  frf_maker_callback_t * callback;
 
   void * sym_handle;
 
